@@ -27,6 +27,10 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
 5. Speedrun timer and automatic level splits, practice/statistics tools and
    LiveSplit import/export. Verify current category rules before implementation;
    measure emulated cycles, including fast-forwarded tally/fake-Daisy scenes.
+   **TAS recorder and TAS player** (requested 2026-10-12): reach both through
+   the in-game menus, with controller navigation. Record inputs, save recordings,
+   select a recording and replay it deterministically; preserve cycle-exact
+   stock playback and separate replay identities for custom gameplay.
 6. Level/world editor and the custom-content runtime, followed by the lobby
    service, in-game sharing, browsing, voting and management.
 7. **Mod ecosystem** (requested 2026-10-11): typed packages with transitive

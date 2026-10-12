@@ -69,7 +69,8 @@ These are planned milestones, not implemented features.
 2. Windows: run the windows-x86_64 build on Windows (it builds, untested),
    then a release zip. Run the aarch64 AppImage on real arm64 hardware.
 3. Phase 9 and the user roadmap (widescreen, RetroAchievements, speedrun
-   timer, editor...). An in-game menu for settings/bindings belongs there.
+   timer, menu-accessible TAS recorder/player, editor...). An in-game menu for
+   settings/bindings belongs there.
 
 Translation sub-agents: none running. To restore verification tools:
 `make stable-hw`, then `make check`, `make check-states` and
@@ -183,6 +184,12 @@ may only change presentation, never game state.
      unchanged. Plus APU output options (band-limited synthesis, clean vs.
      speaker filter, stereo widening). No MIDI as a playback format (it
      cannot represent the APU's timbre); VGM export for remixers instead.
+
+12. **TAS recorder and TAS player** (added 2026-10-12): both accessible through
+    the game menus, including controller navigation. Record inputs and save
+    recordings; choose saved recordings in the menu and play them back
+    deterministically. Preserve cycle-exact stock TAS synchronization and keep
+    custom gameplay recordings in their separate replay identity.
 
 ## TAS movies found (2026-10-08)
 

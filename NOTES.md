@@ -1,5 +1,24 @@
 # Running state
 
+## TAS roadmap request — 2026-10-12
+
+- Added a TAS recorder and TAS player to the speedrun/practice roadmap and
+  docs/PLAN.md. Both must be reachable through the game menus with controller
+  navigation; recording, saving, selecting and deterministic replay are planned.
+- Stock cycle-exact playback and separate custom replay identities remain
+  requirements. This request changes documentation only; implementation is
+  pending alongside the other phase 9 features.
+- Existing asynchronous fault reporting already forwards real faults to the
+  mario lane through the anonymous relay; no runtime changes are needed here.
+- Required pre-commit gates passed: check/check-states/check-models with Bash
+  pipefail, check-frontend with the documented static Linux binary, check-fault
+  and git diff --check. Evidence: build/tas-roadmap-{core,frontend,fault}.log.
+  Shadow replay: 46000 frames, zero mismatches; TAS: 44976 identical polls on
+  AGB/CGB/DMG. No release or device work was needed.
+- GitHub push is blocked: this worker has no HTTPS credentials or gh client
+  (git cannot read Username). The roadmap commit is retained locally on main;
+  push it once worker authentication is restored.
+
 ## M0 bootstrap — 2026-10-12
 
 This checkout is ready for the separate public visibility gate. The
