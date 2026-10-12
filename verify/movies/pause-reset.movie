@@ -1,0 +1,12 @@
+# Exercise pause, unpause and A+B+Select+Start reset from gameplay.
+- *20
+START
+- *100
+START
+- *120
+START
+RIGHT *80
+A+B+SELECT+START
+- *120
+START
+- *200

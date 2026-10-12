@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""Write an annotated listing of the whole ROM (one file per bank).
+
+Combines:
+  * the community disassembly (reference/disasm): labels, symbolic operands
+    and comments, placed at exact addresses by tools/symbols.py;
+  * our own decoding (tools/sm83.py) for the regions the disassembly still
+    includes as raw bytes ("INCBIN baserom.gb"), using an execution coverage
+    map to tell code from data;
+  * the coverage map itself: 'x' in the first column marks instructions that
+    were executed in at least one recorded run, '.' marks bytes read as data.
+
+Usage: listing.py ROM DISASM_DIR COVERAGE OUTDIR
+
+The listing contains Nintendo's code and is generated from the user's ROM, so
+it lives under build/ and is never committed.
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sm83  # noqa: E402
+import symbols  # noqa: E402
+
+
+def bank_addr(off):
+    return (off // 0x4000, off if off < 0x4000 else 0x4000 + off % 0x4000)
+
+
+def main():
+    rom = open(sys.argv[1], "rb").read()
+    asm = symbols.load(rom, sys.argv[2])
+    cov = open(sys.argv[3], "rb").read()
+    outdir = sys.argv[4]
+    os.makedirs(outdir, exist_ok=True)
+
+    labels = {}
+    for name, (bank, addr) in asm.symbols.items():
+        if addr >= 0x8000:
+            continue
+        off = addr if addr < 0x4000 else bank * 0x4000 + addr - 0x4000
+        labels.setdefault(off, []).append(name)
+
+    src = {}
+    for bank, addr, size, kind, text, comment, where in asm.lines:
+        off = addr if addr < 0x4000 else bank * 0x4000 + addr - 0x4000
+        src[off] = (size, kind, text, comment)
+
+    # address -> name for symbolic operands in our own decoding
+    by_addr = {}
+    for name, (bank, addr) in asm.symbols.items():
+        if "." in name:
+            continue
+        by_addr.setdefault((bank if 0x4000 <= addr < 0x8000 else 0, addr), name)
+
+    def symbolize(text, bank):
+        import re
+
+        def rep(m):
+            v = int(m.group(1), 16)
+            if len(m.group(1)) == 2:
+                v |= 0xFF00
+            key = (bank if 0x4000 <= v < 0x8000 else 0, v)
+            return by_addr.get(key, m.group(0))
+        return re.sub(r"\$([0-9a-f]{4}|(?<=\[\$ff)[0-9a-f]{2})", rep, text)
+
+    def mark(off, n):
+        flags = 0
+        for i in range(n):
+            if off + i < len(cov):
+                flags |= cov[off + i]
+        return "x" if flags & 1 else ("." if flags & 4 else " ")
+
+    for bank in range(len(rom) // 0x4000):
+        lines = []
+        off = bank * 0x4000
+        end = off + 0x4000
+        while off < end:
+            b, a = bank_addr(off)
+            for name in sorted(labels.get(off, [])):
+                lines.append("%s%s" % (name, "" if "." in name else ":"))
+            entry = src.get(off)
+            if entry and entry[1] == "code":
+                size, _, text, comment = entry
+                raw = " ".join("%02X" % v for v in rom[off:off + size])
+                lines.append("%s %04X  %-9s %-34s%s" % (mark(off, 1), a, raw, text,
+                                                         ("; " + comment) if comment else ""))
+                off += size
+                continue
+            if entry and entry[1] in ("data", "incbin"):
+                size, kind, text, comment = entry
+                if kind == "data":
+                    lines.append("%s %04X  %-44s%s" % (mark(off, size), a, text[:60],
+                                                       ("; " + comment) if comment else ""))
+                    off += size
+                    continue
+                # INCBIN: decode executed code, dump the rest as bytes
+                lines.append("        ; %s %s" % (text, ("; " + comment) if comment else ""))
+                stop = off + size
+            else:
+                stop = off + 1
+                while stop < end and stop not in src:
+                    stop += 1
+            while off < stop:
+                b, a = bank_addr(off)
+                if off != stop and off in labels and lines and not lines[-1].endswith(":"):
+                    for name in sorted(labels[off]):
+                        lines.append("%s:" % name)
+                if off < len(cov) and cov[off] & 1:
+                    insn = sm83.decode(rom[off:off + 3] + b"\0\0", a)
+                    raw = " ".join("%02X" % v for v in rom[off:off + insn.length])
+                    lines.append("x %04X  %-9s %s" % (a, raw, symbolize(insn.text, b)))
+                    off += insn.length
+                else:
+                    n = 1
+                    while n < 16 and off + n < stop and not (cov[off + n] & 1) and (off + n) not in labels:
+                        n += 1
+                    lines.append("%s %04X  db %s" % (mark(off, n), a, ", ".join("$%02X" % v for v in rom[off:off + n])))
+                    off += n
+        with open(os.path.join(outdir, "bank%d.lst" % bank), "w") as f:
+            f.write("; Super Mario Land (v1.1) bank %d - generated by tools/listing.py\n" % bank)
+            f.write("; x = executed in recorded runs, . = read as data\n\n")
+            f.write("\n".join(lines) + "\n")
+    print("wrote %s/bank0..%d.lst" % (outdir, len(rom) // 0x4000 - 1))
+
+
+if __name__ == "__main__":
+    main()

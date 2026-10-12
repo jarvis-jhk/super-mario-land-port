@@ -1,0 +1,31 @@
+# Nintendo's ROM is never committed. Put your own copy at rom/sml.gb.
+rom/
+*.gb
+# Third-party material fetched for reference / tooling (see docs/BUILDING.md)
+reference/
+tools/testroms/
+tools/zig/
+tools/sdl2/
+build/
+__pycache__/
+*.png
+*.o
+*.a
+tools/linux-headers/
+tools/appimage/
+
+# Local handoff/history and worker state; never publish these.
+.jarvis/
+.jarvis-handoff.md
+.pre-jarvis-history.bundle
+.claude/
+.auto-subagent/
+.foreman/
+# ROM-derived analysis tables, generated locally.
+src/core/access_table.c
+verify/tests/hwtest_glyphs.h
+# Standalone ROM reports and generated analysis, at any location.
+*rom-report*.html
+*.gbc
+*.bundle
+.ntfy-since

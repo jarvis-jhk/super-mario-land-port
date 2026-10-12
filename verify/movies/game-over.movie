@@ -1,0 +1,5 @@
+# Start a game, then walk right without jumping until all lives are lost.
+# This reaches KillMario and the game-over return to the title screen.
+- *20
+START
+RIGHT *5000
