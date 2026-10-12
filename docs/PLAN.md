@@ -8,6 +8,8 @@ every work session starts by reading it and ends by updating it.
 See [ROADMAP.md](../ROADMAP.md), [NOTES.md](../NOTES.md) and the
 [per-file content audit](PUBLIC_AUDIT.md). The repository must remain private
 until the external visibility gate approves the fresh tree. No release yet.
+The TAS roadmap push retry uses authenticated HTTPS to the default main branch;
+see NOTES.md for the corrected worker-authentication status and fresh gate evidence.
 Generated ROM access classifications and third-party test font are local-only;
 see BUILDING.md for regeneration. Runtime asset tables removed during the audit
 now read operands/data from the player's ROM, preserving timing events.
@@ -62,6 +64,9 @@ Player roadmap additions (2026-10-11), designed 2026-10-12: see the top-level
 [Steam Deck release criteria](STEAM_DECK.md). Scripted gameplay belongs to
 the separate Custom mode; the stock core and its TAS invariant remain intact.
 These are planned milestones, not implemented features.
+
+The TAS roadmap delivery follow-up uses authenticated HTTPS to the remote's
+default main branch; verification and delivery state are recorded in NOTES.md.
 
 1. Close remaining coverage gaps (SetupChannel square 2, one-sided enemy
    branches, additional valid pipe/bonus/menu paths); use the seeded

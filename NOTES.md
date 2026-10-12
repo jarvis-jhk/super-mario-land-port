@@ -15,9 +15,13 @@
   and git diff --check. Evidence: build/tas-roadmap-{core,frontend,fault}.log.
   Shadow replay: 46000 frames, zero mismatches; TAS: 44976 identical polls on
   AGB/CGB/DMG. No release or device work was needed.
-- GitHub push is blocked: this worker has no HTTPS credentials or gh client
-  (git cannot read Username). The roadmap commit is retained locally on main;
-  push it once worker authentication is restored.
+- Push retry (2026-10-12): worker HTTPS authentication is available; the remote
+  default branch is main. Publish the original roadmap commit 95871c4 unchanged,
+  followed by this running-state correction, using an environment-only credential
+  helper. The previous missing-credentials diagnosis is superseded.
+- Fresh pre-push gates passed: check/check-states/check-models with Bash pipefail,
+  check-frontend using the documented static Linux binary, and check-fault.
+  Evidence: build/tas-push-{core,frontend,fault}.log. No release or device work.
 
 ## M0 bootstrap — 2026-10-12
 
