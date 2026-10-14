@@ -16,6 +16,7 @@ The separate visibility gate must review this evidence before changing privacy.
 | verify/movies/game-over.movie | Authored start/walk input. No ROM or snapshot. Keep. |
 | verify/movies/pause-reset.movie | Authored input to pause/reset/restart. No ROM or snapshot. Keep. |
 | verify/fntest/state-cases.txt | Authored synthetic RAM inputs for differential tests; both implementations start from a locally generated oracle snapshot. No copied snapshot or ROM/VRAM payload. Function names, RAM fields and small state constants describe test behavior. Keep. |
+| verify/fntest/coverage-cases.txt, coverage-required.txt, state-required.txt | Authored synthetic inputs and code-level test assertions: register arguments, slot/tile state constants and individual branch instruction addresses. Channel data and sprite layouts still come from the player's ROM. No copied ROM bytes, sprite data, snapshot or generated coverage report. Keep; actual coverage output stays local. |
 | verify/tests/hwtest_glyphs.h | Artwork from the third-party Gambatte test ROMs, not Mario; conservatively local-only/gitignored. tools/regen_hwtest_glyphs.py extracts it from the fetched reference, byte-identically. |
 | src/game/player.c | Copied four-byte stomp reward table removed; read it from the ROM at runtime. |
 | src/game/level_floaties.c | Sprite/score lookup values formerly copied from ROM instructions removed; read operands at runtime. Arrays contain instruction addresses only. |

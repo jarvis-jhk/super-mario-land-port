@@ -1,0 +1,27 @@
+# Contracts for the authored cases in state-cases.txt.
+EnterPipeDown tested
+EnterPipeDown 0:1621
+EnterUnderground tested
+ExitPipeSideways tested
+ExitPipeSideways 0:1670
+ExitPipeSideways 0:1677
+ExitPipeUp tested
+ExitPipeUp 0:16DE
+ExitPipeUp 0:16E5
+DescendBonusLadder tested
+DescendBonusLadder 2:5C2F
+DescendBonusLadder 2:5C33
+DescendBonusLadder 2:5C37
+AscendBonusLadder tested
+AscendBonusLadder 2:5C88
+AscendBonusLadder 2:5C8C
+AscendBonusLadder 2:5C90
+PrepareTimeUp tested
+FinishTimeUp tested
+FinishTimeUp 0:1D20
+PauseOrReset tested
+PauseOrReset 0:07E9
+PauseOrReset 0:07EE
+PauseOrReset 0:07F8
+DispatchGameState tested
+UpdateDaisyRun tested

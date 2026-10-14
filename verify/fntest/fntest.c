@@ -2,7 +2,7 @@
  * fntest: differential tests of translated functions (see fntest.h).
  *
  *   fntest ROM --movie FILE [--model M] [--samples N] [--polls N]
- *          [--cases FILE] [--coverage FILE] [NAME...]
+ *          [--cases FILE] [--coverage FILE] [--require-coverage FILE] [NAME...]
  *
  * Without names all registered functions are tested. N (default 300) caps
  * the number of snapshots per function; snapshots are spread over the run
@@ -739,8 +739,10 @@ static int on_exec(Sm83 *cpu, uint16_t pc, void *user)
 
 /* Seed rare, valid transitions from a movie snapshot. Each line names a
    registered routine followed by hexadecimal RAM/VRAM address=value pairs
-   (or bank=value). The original and C still run from identical snapshots;
-   existing fuzz predicates apply unchanged. Each case starts independently. */
+   (or bank=value, hl=value, de=value, bc=value, a=value). Register pairs
+   accept 16-bit values; other inputs are bytes. The original and C still run
+   from identical snapshots; existing fuzz predicates apply unchanged.
+   Each case starts independently. */
 static int run_cases(const char *path)
 {
     FILE *file = fopen(path, "r");
@@ -773,14 +775,31 @@ static int run_cases(const char *path)
             *eq++ = 0;
             char *end;
             unsigned long value = strtoul(eq, &end, 16);
-            if (*end || value > 255) goto bad_case;
+            if (end == eq || *end || value > 0xFFFF) goto bad_case;
+            if (!strcmp(pair, "hl")) {
+                ref->cpu.r.h = value >> 8; ref->cpu.r.l = value;
+                continue;
+            }
+            if (!strcmp(pair, "de")) {
+                ref->cpu.r.d = value >> 8; ref->cpu.r.e = value;
+                continue;
+            }
+            if (!strcmp(pair, "bc")) {
+                ref->cpu.r.b = value >> 8; ref->cpu.r.c = value;
+                continue;
+            }
+            if (value > 255) goto bad_case;
+            if (!strcmp(pair, "a")) {
+                ref->cpu.r.a = value;
+                continue;
+            }
             if (!strcmp(pair, "bank")) {
                 if (value < 1 || value > 3) goto bad_case;
                 ref->m.rom_bank = value;
                 continue;
             }
             unsigned long addr = strtoul(pair, &end, 16);
-            if (*end) goto bad_case;
+            if (end == pair || *end) goto bad_case;
             if (addr >= 0xC000 && addr < 0xE000) ref->m.wram[addr - 0xC000] = value;
             else if (addr >= 0xFF80 && addr < 0xFFFF) ref->m.hram[addr - 0xFF80] = value;
             else if (addr >= 0x8000 && addr < 0xA000) ref->m.vram[addr - 0x8000] = value;
@@ -803,20 +822,71 @@ bad_case:
         fprintf(stderr, "%s:%u: invalid function case\n", path, lineno);
         fclose(file); return 1;
     }
+    if (ferror(file)) { perror(path); fclose(file); return 1; }
     fclose(file);
     ref->m = base; ref->cpu.r = regs;
     return 0;
 }
 
+/* Coverage contracts fail even when all differential comparisons pass.
+   NAME tested requires a successful sample; NAME BANK:PC requires both
+   outcomes of that branch in this entry's original-ROM execution. */
+static int require_coverage(const char *path)
+{
+    FILE *file = fopen(path, "r");
+    if (!file) { perror(path); return 1; }
+    char line[256];
+    unsigned lineno = 0;
+    int missing = 0;
+    while (fgets(line, sizeof line, file)) {
+        lineno++;
+        char *comment = strchr(line, '#');
+        if (comment) *comment = 0;
+        char *name = strtok(line, " \t\r\n");
+        if (!name) continue;
+        char *site = strtok(NULL, " \t\r\n");
+        int index = -1;
+        for (int i = 0; i < nactive; i++)
+            if (!strcmp(active[i]->name, name)) index = i;
+        if (index < 0 || !site || strtok(NULL, " \t\r\n")) goto invalid;
+        Stats *st = &stats[index];
+        if (!strcmp(site, "tested")) {
+            if (st->passed) continue;
+        } else {
+            char *end;
+            unsigned long bank = strtoul(site, &end, 16);
+            if (end == site || *end != ':' || bank > 3) goto invalid;
+            char *pc_text = end + 1;
+            unsigned long pc = strtoul(pc_text, &end, 16);
+            if (end == pc_text || *end || pc > 0x7FFF ||
+                (pc < 0x4000 ? bank != 0 : bank == 0)) goto invalid;
+            int covered = 0;
+            for (int k = 0; k < st->ncov; k++)
+                if (st->cov[k].bank == bank && st->cov[k].pc == pc && st->cov[k].seen == 3)
+                    covered = 1;
+            if (covered) continue;
+        }
+        fprintf(stderr, "%s:%u: missing coverage: %s %s\n", path, lineno, name, site);
+        missing = 1;
+        continue;
+invalid:
+        fprintf(stderr, "%s:%u: invalid coverage requirement\n", path, lineno);
+        fclose(file); return 1;
+    }
+    if (ferror(file)) { perror(path); missing = 1; }
+    fclose(file);
+    return missing;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
-        fprintf(stderr, "usage: fntest ROM --movie FILE [--model M] [--samples N] [--polls N] [--cases FILE] [--coverage FILE] [NAME...]\n");
+        fprintf(stderr, "usage: fntest ROM --movie FILE [--model M] [--samples N] [--polls N] [--cases FILE] [--coverage FILE] [--require-coverage FILE] [NAME...]\n");
         return 2;
     }
     MachineModel model = MODEL_DMG;
     long max_polls = -1;
-    const char *cases = NULL, *coverage_path = NULL;
+    const char *cases = NULL, *coverage_path = NULL, *coverage_requirements = NULL;
     const char *names[256];
     int nnames = 0;
     for (int i = 2; i < argc; i++) {
@@ -836,6 +906,8 @@ int main(int argc, char **argv)
             cases = argv[++i];
         } else if (!strcmp(argv[i], "--coverage") && i + 1 < argc) {
             coverage_path = argv[++i];
+        } else if (!strcmp(argv[i], "--require-coverage") && i + 1 < argc) {
+            coverage_requirements = argv[++i];
         } else if (nnames < 256) {
             names[nnames++] = argv[i];
         }
@@ -868,6 +940,7 @@ int main(int argc, char **argv)
     while (poll_count < max_polls)
         gb_run_frame(ref);
     if (cases && run_cases(cases)) return 2;
+    if (coverage_requirements && require_coverage(coverage_requirements)) failures++;
 
     /* Every branch site per entry (tools/merge_coverage.py merges runs):
        "NAME BANK:PC SEEN", SEEN bit 0 = not taken, bit 1 = taken. */

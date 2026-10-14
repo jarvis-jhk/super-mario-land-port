@@ -224,7 +224,12 @@ check: $(BUILD)/fntest $(BUILD)/portrun $(BUILD)/portrun_hybrid $(BUILD)/emurun_
 # port and for the hybrid core.
 check-states: $(BUILD)/fntest $(BUILD)/portrun $(BUILD)/portrun_hybrid $(BUILD)/emurun_s
 	$(BUILD)/fntest rom/sml.gb --model agb --movie build/resync11.movie \
-	    --polls 100 --samples 0 --fuzz 8 --cases verify/fntest/state-cases.txt | tail -1
+	    --polls 100 --samples 0 --fuzz 0 --cases verify/fntest/coverage-cases.txt \
+	    --require-coverage verify/fntest/coverage-required.txt | tail -1
+	python3 verify/tests/fntest_cases_test.py
+	$(BUILD)/fntest rom/sml.gb --model agb --movie build/resync11.movie \
+	    --polls 100 --samples 0 --fuzz 8 --cases verify/fntest/state-cases.txt \
+	    --require-coverage verify/fntest/state-required.txt | tail -1
 	@for movie in ending game-over pause-reset; do \
 	    $(BUILD)/emurun_s rom/sml.gb --model agb --movie verify/movies/$$movie.movie --poll-log $(BUILD)/states_$$movie.reference.log && \
 	    $(BUILD)/portrun rom/sml.gb --model agb --movie verify/movies/$$movie.movie --poll-log $(BUILD)/states_$$movie.port.log && \

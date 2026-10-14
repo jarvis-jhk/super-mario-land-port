@@ -8,11 +8,14 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
 
 ## Current priorities
 
-1. Finish the private visibility gate, then CI and the four-platform M0 release.
+1. Reconcile visibility-gate approval evidence, then CI and the four-platform M0 release.
    Preserve the cycle-exact stock game: close differential-test coverage gaps
-   without weakening validity checks. Include SetupChannel square 2, valid pipe/bonus/menu
-   paths and the 14 enemy entries with one-sided branches. All existing TAS replays must pass before
-   every commit and release.
+   without weakening validity checks. The deterministic coverage checkpoint is
+   complete: square 2 pause notes, all menu branches, first-screen widths,
+   targeted branches in 15 enemy/shooter entries, and pipe/bonus transition
+   contracts. Continue whole-movie coverage review for remaining script,
+   collision and hardware-wait paths. All existing TAS replays must pass
+   before every commit and release.
 2. Establish the first four-platform release: Linux x86_64 AppImage and tarball,
    Windows x86_64 zip with SDL2, PortMaster aarch64 package, and Steam Deck
    installer. Every platform needs safe checksum-verified updates, an offline
@@ -72,6 +75,11 @@ The pure-C stock core and Linux frontend/AppImages are implemented. Windows
 cross-builds but awaits runtime verification. The release infrastructure,
 Steam Deck integration, lobby service and mod runtime are planned work;
 their presence on this roadmap does not mean a release exists yet.
+
+The setup audit, fresh history, roadmap and anonymous fault relay are complete.
+GitHub currently reports public visibility; this worker did not change it.
+Reconcile the external visibility-gate evidence before a release. Full no-ROM
+CI still needs removal of the generated access-table build dependency.
 
 ## Verification maintenance (former local queue)
 

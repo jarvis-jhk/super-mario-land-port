@@ -1,0 +1,132 @@
+# Coverage regressions: independent synthetic inputs at TAS poll 100.
+# Register pairs (hl/de/bc) and a are hexadecimal, as are RAM/VRAM fields.
+# No ROM bytes: channel and sprite data are read from the player ROM.
+
+# Square 2 pause notes: data comes from the player ROM.
+SetupChannel.square2 hl=66EE
+SetupChannel.square2 hl=66F2
+
+# Start, all continue levels, expert selection, cursor and demos.
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=78 FF9A=0
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=78 FF9A=2
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=11
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=43
+UpdateMenu bank=2 FFFD=2 FF81=4 C0A6=0 FF9A=0 C0D7=1
+UpdateMenu bank=2 FFFD=2 FF81=4 C0A6=1 FF9A=0 C0D7=1
+UpdateMenu bank=2 FFFD=2 FF81=1 FF9A=2 FFB4=13 FFE4=2 C0D7=1
+UpdateMenu bank=2 FFFD=2 FF81=1 FF9A=2 FFB4=43 FFE4=B C0D7=1
+UpdateMenu bank=2 FFFD=2 FF81=0 FF9A=2 C0D7=1
+UpdateMenu bank=2 FFFD=2 FF81=0 FF9A=0 C0D7=0 C0DC=0
+UpdateMenu bank=2 FFFD=2 FF81=0 FF9A=0 C0D7=0 C0DC=2
+UpdateMenu bank=2 FFFD=2 FF81=1 FF9A=2 FFB4=11 FFE4=0 C0D7=1
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=12
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=13
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=21
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=22
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=23
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=31
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=32
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=33
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=41
+UpdateMenu bank=2 FFFD=2 FF81=8 C004=80 C0A6=1 C0A8=42
+
+# Normal, underground and title/hangar first-screen widths.
+DrawFirstLevelScreen bank=2 FFFD=2 FFB4=11 FFE4=0 FFE5=0 FFB3=0 FF99=0
+DrawFirstLevelScreen bank=2 FFFD=2 FFB4=11 FFE4=0 FFE5=0 FFB3=A FF99=2
+DrawFirstLevelScreen bank=2 FFFD=2 FFB4=11 FFE4=C FFE5=0 FFB3=0 FF99=0
+
+# No scroll versus positive displacement.
+ScrollEnemies bc=0
+ScrollEnemies bc=100
+
+# Enemy list scan before its first entry and later in the level.
+InitEnemySlots bank=2 FFFD=2 FFE4=0 C0AB=0
+InitEnemySlots bank=2 FFFD=2 FFE4=0 C0AB=60
+
+# No projectile, a free slot, and a boss with every slot occupied.
+LaunchEnemyProjectile D003=FF D100=FF D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF
+LaunchEnemyProjectile D003=0 D100=FF D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF
+LaunchEnemyProjectile D003=8 D100=0 D110=0 D120=0 D130=0 D140=0 D150=0 D160=0 D170=0 D180=0 D190=0
+
+# ROM level-entry addresses: hard-mode skip, normal spawn and full slots.
+SpawnEnemyFromLevelData bank=2 FFFD=2 hl=6007 FF9A=0 D100=FF D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF
+SpawnEnemyFromLevelData bank=2 FFFD=2 hl=6007 FF9A=1 D100=FF D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF
+SpawnEnemyFromLevelData bank=2 FFFD=2 hl=618D FF9A=1 D100=0 D110=0 D120=0 D130=0 D140=0 D150=0 D160=0 D170=0 D180=0 D190=0
+SpawnEnemyFromLevelData bank=2 FFFD=2 hl=6004 FF9A=0 D100=FF D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF
+
+# Empty OAM capacity, both facings and sprite offset commands.
+DrawEnemy FFC6=0 FFC5=0 D013=14
+DrawEnemy FFC6=0 FFC5=0 D013=0
+DrawEnemy FFC6=0 FFC5=1 D013=13
+DrawEnemy FFC6=14 FFC5=0 D013=0
+DrawEnemy FFC6=14 FFC5=1 D013=0
+DrawEnemy FFC6=5F FFC5=0 D013=0
+
+# Off-screen removal, all ten slots, OAM exhaustion and offset commands.
+DrawEnemies D100=0 D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF D106=0 D103=E0 D102=40
+DrawEnemies D100=0 D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF D106=0 D103=40 D102=C0
+DrawEnemies D100=0 D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF D106=0 D103=40 D102=40
+DrawEnemies D100=0 D102=40 D103=40 D106=0 D110=0 D112=40 D113=40 D116=0 D120=0 D122=40 D123=40 D126=0 D130=0 D132=40 D133=40 D136=0 D140=0 D142=40 D143=40 D146=0 D150=0 D152=40 D153=40 D156=0 D160=0 D162=40 D163=40 D166=0 D170=0 D172=40 D173=40 D176=0 D180=0 D182=40 D183=40 D186=0 D190=0 D192=40 D193=40 D196=0
+DrawEnemies D100=0 D102=40 D103=40 D106=14 D110=0 D112=40 D113=40 D116=14 D120=0 D122=40 D123=40 D126=14 D130=0 D132=40 D133=40 D136=14 D140=0 D142=40 D143=40 D146=14 D150=0 D152=40 D153=40 D156=14 D160=0 D162=40 D163=40 D166=14 D170=0 D172=40 D173=40 D176=14 D180=0 D182=40 D183=40 D186=14 D190=0 D192=40 D193=40 D196=14
+DrawEnemies D100=0 D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF D106=5F D103=40 D102=40
+
+# Wait divider and gravity paths; both implementations use identical VRAM.
+UpdateEnemy hl=3564 FFB4=11 FFC0=0 FFC1=0 FFC2=40 FFC3=40 FFC7=0 FFC8=1 FFC9=0 FFCA=11 FFCB=0
+UpdateEnemy hl=3564 FFB4=11 FFC0=0 FFC1=0 FFC2=40 FFC3=40 FFC7=0 FFC8=1 FFC9=1 FFCA=11 FFCB=0
+UpdateEnemy hl=3564 FFB4=11 FFC0=0 FFC1=0 FFC2=40 FFC3=40 FFC7=2 FFC8=1 FFC9=0 FFCA=11 FFCB=0 FFA4=0 98E7=0
+UpdateEnemy hl=3564 FFB4=11 FFC0=0 FFC1=0 FFC2=40 FFC3=40 FFC7=2 FFC8=1 FFC9=0 FFCA=11 FFCB=0 FFA4=0 98E7=60
+
+# Coins, boss switch, goal block, empty/solid tile and small/big Mario.
+AutoscrollStep bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=0 C0D2=0 C202=40 C201=40 FF80=0 98C8=0
+AutoscrollStep bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=0 C0D2=0 C202=40 C201=40 FF80=0 98C8=F4
+AutoscrollStep bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=0 C0D2=0 C202=40 C201=40 FF80=0 98C8=E1
+AutoscrollStep bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=0 C0D2=0 C202=40 C201=40 FF80=0 98C8=83
+AutoscrollStep bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=0 C0D2=0 C202=40 C201=40 FF80=0 98C8=60
+AutoscrollStep bank=1 FFFD=1 FFAC=1
+AutoscrollStep bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=2 C0D2=0 C202=40 C201=40 FF80=0 98C8=0 98A8=0
+
+# Same side probes reached through rightward steering.
+AutoscrollSteer bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=0 C0D2=0 C202=40 C201=40 FF80=10 98C8=0
+AutoscrollSteer bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=0 C0D2=0 C202=40 C201=40 FF80=10 98C8=F4
+AutoscrollSteer bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=0 C0D2=0 C202=40 C201=40 FF80=10 98C8=E1
+AutoscrollSteer bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=0 C0D2=0 C202=40 C201=40 FF80=10 98C8=83
+AutoscrollSteer bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=0 C0D2=0 C202=40 C201=40 FF80=10 98C8=60
+AutoscrollSteer bank=1 FFFD=1 FFAC=0 FFA4=0 FF99=2 C0D2=0 C202=40 C201=40 FF80=10 98C8=0 98A8=0
+
+# First/second lower probe, coin pickup and boss switch.
+AutoscrollCheckBelow bank=1 FFFD=1 FFA4=0 C202=40 C201=40 98E6=0 98E7=0
+AutoscrollCheckBelow bank=1 FFFD=1 FFA4=0 C202=40 C201=40 98E6=0 98E7=E1
+AutoscrollCheckBelow bank=1 FFFD=1 FFA4=0 C202=40 C201=40 98E6=0 98E7=F4
+AutoscrollCheckBelow bank=1 FFFD=1 FFA4=0 C202=40 C201=40 98E6=0 98E7=60
+AutoscrollCheckBelow bank=1 FFFD=1 FFA4=0 C202=40 C201=40 98E6=60 98E7=0
+
+# Solid versus empty tile below the left edge.
+EnemyProbeBelowLeft FFC2=40 FFC3=40 FFCA=11 FFA4=0 98E7=0
+EnemyProbeBelowLeft FFC2=40 FFC3=40 FFCA=11 FFA4=0 98E7=60
+
+# Solid versus empty tile below the right edge.
+EnemyProbeBelowRight FFC2=40 FFC3=40 FFCA=11 FFA4=0 98E7=0
+EnemyProbeBelowRight FFC2=40 FFC3=40 FFCA=11 FFA4=0 98E7=60
+
+# Wait divider reached through the whole enemy-script dispatcher.
+UpdateEnemyScripts bank=2 FFFD=2 FFE4=0 FFB4=11 C0AB=0 D100=0 D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF D101=0 D102=40 D103=40 D106=0 D107=0 D108=1 D109=0 D10A=11 D10B=0
+UpdateEnemyScripts bank=2 FFFD=2 FFE4=0 FFB4=11 C0AB=0 D100=0 D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF D101=0 D102=40 D103=40 D106=0 D107=0 D108=1 D109=1 D10A=11 D10B=0
+
+# Wait divider reached through the whole enemy frame.
+UpdateEnemies bank=2 FFFD=2 FFE4=0 FFB4=11 C0AB=0 D100=0 D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF D101=0 D102=40 D103=40 D106=0 D107=0 D108=1 D109=0 D10A=11 D10B=0
+UpdateEnemies bank=2 FFFD=2 FFE4=0 FFB4=11 C0AB=0 D100=0 D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF D101=0 D102=40 D103=40 D106=0 D107=0 D108=1 D109=1 D10A=11 D10B=0
+
+# Empty/solid tile and projectile leaving the right edge.
+AutoscrollUpdateShots bank=1 FFFD=1 FFA4=0 FFA9=1 FFAA=0 FFAB=0 C000=40 C001=40 98C7=0 D100=FF D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF
+AutoscrollUpdateShots bank=1 FFFD=1 FFA4=0 FFA9=1 FFAA=0 FFAB=0 C000=40 C001=40 98C7=60 D100=FF D110=FF D120=FF D130=FF D140=FF D150=FF D160=FF D170=FF D180=FF D190=FF
+AutoscrollUpdateShots bank=1 FFFD=1 FFA4=0 FFA9=1 FFAA=0 FFAB=0 C000=40 C001=A7
+
+# Timer interrupt pause, unpause, held note and repeated beeps.
+Call_7FF0 FFDF=1 FFDE=0
+Call_7FF0 FFDF=2 FFDE=0
+Call_7FF0 FFDF=0 FFDE=29
+Call_7FF0 FFDF=0 FFDE=21
+Call_7FF0 FFDF=0 FFDE=19
+Call_7FF0 FFDF=0 FFDE=11
+Call_7FF0 FFDF=0 FFDE=30
+Call_7FF0 FFDF=0 FFDE=0

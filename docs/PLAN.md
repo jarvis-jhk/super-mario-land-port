@@ -15,6 +15,29 @@ see BUILDING.md for regeneration. Runtime asset tables removed during the audit
 now read operands/data from the player's ROM, preserving timing events.
 The public anonymous fault relay uses the Actions secret only on the server.
 
+## Coverage checkpoint (2026-10-14)
+
+The setup audit, fresh tree, roadmap and fault relay are implemented; GitHub
+now reports public visibility. This worker did not change it. The existing
+session restriction on releases remains in force; external visibility-gate
+evidence and full no-ROM CI are still release prerequisites.
+
+`check-states` now enforces coverage, rather than only comparing whichever
+paths happen to run. Authored cases cover both square-2 pause notes and the
+timer interrupt's pause/repeated-beep/unpause paths, all 21 menu branches,
+normal/underground/title first-screen widths, and targeted coverage across 15
+enemy/shooter entries. Existing pipe, bonus-ladder, time-up, pause, unused
+dispatcher and reunion cases now have coverage contracts as well. No game
+code or validity predicate changed.
+
+Further coverage review remains necessary: the new enemy tests protect
+specific branches, not every script/collision branch. Hardware wait loops
+depend on sub-frame phase; the second STAT wait is one-sided in these seeds.
+The enemy-list scan reached through ResetLevelEnemies remains one-sided;
+that caller resets progress to the first screen. InitEnemySlots is tested
+independently with later progress. Do not invent impossible game states or
+change validity predicates to force an outcome.
+
 ## Current state (2026-10-11, read this first)
 
 **The Linux port is complete (phase 8 for Linux).** The SDL2 frontend
@@ -291,7 +314,21 @@ address=value fields and runs both versions; existing fuzz validity
 predicates still apply. To run the cases without movie-sampled function tests:
 
     build/fntest rom/sml.gb --model agb --movie build/resync11.movie \
-        --polls 100 --samples 0 --fuzz 8 --cases verify/fntest/state-cases.txt
+        --polls 100 --samples 0 --fuzz 8 --cases verify/fntest/state-cases.txt \
+        --require-coverage verify/fntest/state-required.txt
+
+The deterministic coverage checkpoint runs separately with fuzz disabled:
+
+    build/fntest rom/sml.gb --model agb --movie build/resync11.movie \
+        --polls 100 --samples 0 --fuzz 0 --cases verify/fntest/coverage-cases.txt \
+        --require-coverage verify/fntest/coverage-required.txt
+
+Cases can seed hexadecimal `hl`, `de`, `bc` (16-bit pairs) and `a` (a byte),
+in addition to memory and ROM bank. Each case restores the original base
+snapshot before applying inputs. A requirement `NAME tested` needs a passing
+sample; `NAME BANK:PC` needs both branch outcomes in that routine's original
+ROM execution. Missing samples, wrong-bank sites and one-sided branches fail
+the command. The input/contract regression test checks these failure modes.
 
 The final summary reports untested registry entries outside that focused
 case set; those are exercised by the separate movie/function checks.
@@ -308,6 +345,13 @@ case set; those are exercised by the separate movie/function checks.
 | game states / main loop / bonus game / ending / interrupts | main | done; pure-C runtime verified on all movies and models |
 
 ## Log
+
+* 2026-10-14: added deterministic differential coverage contracts and register
+  seeds to fntest. The square-2, menu, first-screen and targeted enemy/shooter
+  checkpoint is implemented; pipe/bonus/pause transition coverage is enforced.
+  Full core/ROM, frontend and anonymous-fault verification results are in
+  NOTES.md; local evidence remains in build/session-*. No release or device
+  verification is claimed.
 
 * 2026-10-11 (phase 8, Linux): frontend finished and packaged. The
   settings file and resampler (started earlier as standalone modules) are

@@ -1,5 +1,48 @@
 # Running state
 
+## Deterministic coverage checkpoint — 2026-10-14
+
+- GitHub triage found no open issues or PRs, including fault reports. The
+  anonymous fault-report workflow has successful scheduled runs. The setup
+  audit, fresh history, roadmap and relay are implemented. GitHub now reports
+  public visibility; this worker did not change it. No release is authorized
+  under the current session instructions. Reconcile the external gate evidence
+  before releasing.
+- Added register arguments and mandatory coverage contracts to fntest. The
+  contracts fail for missing passing samples or missing branch outcomes,
+  including wrong-bank sites. Invalid register/memory fields and malformed
+  requirements are checked with real-ROM regression tests.
+- Added 91 deterministic cases across 19 entries and 65 coverage requirements:
+  both square-2 pause notes, repeated pause beeps, all 21 menu branches,
+  normal/underground/title first-screen widths, and targeted coverage across 15
+  enemy/shooter entries. Existing rare-state cases have 26 requirements for
+  pipe entry/return, bonus landings, time-up, pause, unused dispatch and reunion.
+  check-states runs the new checkpoint with fuzz disabled, preserving existing
+  fuzzy cases and all movie checks. No game code or validity predicate changed.
+- The focused checkpoint also passes on CGB and DMG. Detailed coverage and
+  sampled data remain local in build/session-*. No ROM bytes, artwork or
+  generated execution reports were added to the public tree; the updated
+  content audit and privacy scan are clean.
+- Required make check/check-states/check-models passed with Bash pipefail:
+  fuzzed fntest and seeded states have zero failures; shadowtest replays 46000
+  frames, 47441151 events and 5312445 hardware access/dispatch cycles with zero
+  mismatches. resync11 has 44976 identical polls on AGB/CGB/DMG; ending has
+  65477, game over 5082 and pause/reset 706, identical in pure C and hybrid.
+  Evidence: build/session-rom-gates.log. The final spawn cases use actual
+  level-entry addresses in the player's ROM and pass the deterministic
+  contracts on all three models (build/session-focused*.log).
+- check-frontend passed using the documented static Linux binary (unit tests
+  and 600 headless frames); check-fault passed with a local fake sender. No
+  synthetic report was sent. Evidence: build/session-{frontend,fault}.log.
+  git diff --check is clean; build/ remains below 700 MiB.
+- Remaining work: full no-ROM core/platform CI, release packages and safe
+  updates/changelog. The targeted checkpoint does not establish full enemy
+  script/collision coverage; hardware wait loops need separate phase-sensitive
+  review. See docs/PLAN.md for the explicit remaining coverage limits.
+- Combined-roadmap synchronization is unavailable in this worker environment.
+  Filed an infrastructure request with the self lane; continued with this
+  repository's priorities. No new roadmap feature was introduced.
+
 ## TAS roadmap request — 2026-10-12
 
 - Added a TAS recorder and TAS player to the speedrun/practice roadmap and
