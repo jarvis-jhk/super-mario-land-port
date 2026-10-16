@@ -27,7 +27,7 @@ Releases (github.com/jarvis-jhk/super-mario-land-port/releases) contain a
 README.txt for every package. Windows (10 or later): unzip, put `sml.gb` next
 to `sml.exe` or in `%APPDATA%\super-mario-land-port\`, start `sml.exe`.
 PortMaster: unzip into the handheld's ports folder and put the ROM at
-`ports/supermarioland/sml.gb`; Select+Start quits. Steam Deck: in Desktop Mode
+`ports/supermarioland/sml.gb`; Select+Start quits, Select+L1 opens the menu. Steam Deck: in Desktop Mode
 run `install.sh [path/to/sml.gb]` from the steamdeck archive; it installs to
 `~/.local/share/super-mario-land-port/`, adds a "Super Mario Land" desktop
 entry and (after Steam is closed) a non-Steam game with artwork. Running it
@@ -63,12 +63,42 @@ docs/UPDATES.md.
 | fullscreen | F11, Alt+Enter | |
 | screenshot | F12 | |
 | speedrun timer on/off | F8 | |
-| quit | Esc | |
+| settings menu | Esc, F1 | Guide, Select+Start, Select+L1 |
 
-Every binding can be changed in the settings file. Palette, scaling and
-fullscreen changes made with the keys are saved there on exit.
+On PortMaster handhelds Select+Start quits the port (gptokeyb); use
+Select+L1 or Guide for the menu there.
+
+## Settings menu
+
+Esc (or a controller's Guide button, Select+Start or Select+L1) opens the
+menu over the game, which stands still meanwhile. Up/Down choose, Left/Right
+change a value, A/Enter selects, B/Esc goes back. It has widescreen,
+scaling, palette, fullscreen, volume, sound, the speedrun timer and its
+category, automatic updates, the controls, the changelog and Quit. Under
+*Controls* pick an action and press the new key or controller button for
+it (Esc or six seconds cancel); *Reset all controls* restores the defaults.
+Changes are saved in the settings file when the menu closes; options given
+on the command line stay one-off. F12 in the menu saves a picture of it as
+`menu.png` in the data directory.
+
+## Widescreen
+
+With widescreen on, the picture keeps the Game Boy's 144 lines and grows
+sideways: up to 32:9, so the whole width of a 16:9, 16:10, ultrawide or
+handheld screen shows more of the level. `on` fills the window; a fixed
+aspect (`4:3`, `16:10`, `16:9`, `64:27`, `32:9` in the menu, any `W:H` in
+the settings file) keeps that shape in any window. The middle 160 pixels
+are exactly the game's picture. To the right, the level columns the game
+has not drawn yet are decoded from the level data in your ROM; to the left
+the columns it drew last are kept. Enemies appear only when the game spawns
+them at its own screen edge, and the status bar, the title screen, bonus
+games, underground rooms and the ending keep blank sides. Widescreen is
+presentation only: the game runs exactly as on a Game Boy.
+
+Every binding can be changed in the menu or the settings file. Palette,
+scaling and fullscreen changes made with the keys are saved there as well.
 Screenshots go to `~/.local/share/super-mario-land-port/screenshots/`
-(native 160x144, current palette).
+(the picture as shown: 160x144, or wider with widescreen, current palette).
 
 ## Settings
 
@@ -81,7 +111,9 @@ another file. Command-line options override it for one run (`sml --help`).
   with square pixels and edges at most one screen pixel soft), `nearest`
   (fills the window, uneven pixel sizes); `fullscreen`; `vsync`;
   `palette` (`green`, `gray`, `pocket` or four `#RRGGBB` colours, lightest
-  first); `fast_forward_speed` (0 = as fast as possible, N = N times).
+  first); `widescreen` (`off`, `on` = fill the window, or an aspect ratio
+  such as `16:9`); `fast_forward_speed` (0 = as fast as possible, N = N
+  times).
 * `sync`: `clock` paces at the Game Boy's exact 59.73 frames per second.
   `vsync` shows one game frame per display refresh, for displays at about
   60 Hz: the game runs up to 0.5 % fast, but scrolling is perfectly smooth.
@@ -94,7 +126,9 @@ another file. Command-line options override it for one run (`sml --help`).
 * `[keyboard]`, `[controller]`: comma-separated SDL key names (`X`,
   `Right Shift`, `Keypad Enter`...) and controller buttons (`a`, `b`, `x`,
   `y`, `back`, `start`, `leftshoulder`, `dpup`...) per action; `none`
-  unbinds. `stick` and `deadzone` control the left stick.
+  unbinds. `menu` also takes button pairs such as `back+start` (both held).
+  `quit` is unbound by default (Quit is in the menu); a key bound to both
+  opens the menu. `stick` and `deadzone` control the left stick.
 
 None of these settings change the game: pacing, scaling, resampling and
 fast forward only affect presentation, so the game computes exactly what

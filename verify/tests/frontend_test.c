@@ -47,6 +47,11 @@ static void test_defaults_round_trip(void)
     CHECK(!strcmp(a.keys[ACT_SELECT][0], "Right Shift") && !strcmp(a.keys[ACT_SELECT][1], "Backspace"));
     CHECK(!strcmp(a.buttons[ACT_B][1], "x"));
     CHECK(a.buttons[ACT_QUIT][0][0] == 0);
+    /* the menu: Escape/F1, Guide or Select+Start; quit only from the menu */
+    CHECK(a.keys[ACT_QUIT][0][0] == 0 && !strcmp(a.keys[ACT_MENU][0], "Escape"));
+    CHECK(!strcmp(a.buttons[ACT_MENU][0], "guide") && !strcmp(a.buttons[ACT_MENU][1], "back+start") &&
+          !strcmp(a.buttons[ACT_MENU][2], "back+leftshoulder"));
+    CHECK(a.widescreen == 0);
 
     /* change a bit of everything, save, load into fresh defaults */
     a.scale = 3;
@@ -61,6 +66,7 @@ static void test_defaults_round_trip(void)
     a.update_check = 0;
     a.speedrun = 1;
     a.speedrun_category = SR_NORMAL_HARD;
+    a.widescreen = 2100;
     memset(a.keys[ACT_QUIT], 0, sizeof a.keys[ACT_QUIT]);
     snprintf(a.keys[ACT_START][1], BIND_NAME, "Keypad Enter");
     const char *path = tmp_path("sml_frontend_test.ini");
@@ -118,6 +124,30 @@ static void test_parse(void)
     CHECK(s.update_check == 1);
     CHECK(settings_set(&s, "update", "check", "no", err, sizeof err) == 0 && s.update_check == 0);
     remove(path);
+}
+
+static void test_widescreen_settings(void)
+{
+    Settings s;
+    char err[200], name[24];
+    settings_defaults(&s);
+    CHECK(settings_set(&s, "video", "widescreen", "16:9", err, sizeof err) == 0 && s.widescreen == 1777);
+    settings_widescreen_name(s.widescreen, name, sizeof name);
+    CHECK(!strcmp(name, "16:9"));
+    CHECK(settings_wide_width(s.widescreen, 0, 0) == 256);
+    CHECK(settings_set(&s, "video", "widescreen", "21:9", err, sizeof err) == 0);
+    CHECK(settings_wide_width(s.widescreen, 0, 0) == 336);
+    CHECK(settings_set(&s, "video", "widescreen", "on", err, sizeof err) == 0 && s.widescreen == -1);
+    CHECK(settings_wide_width(-1, 1920, 1080) == 256);     /* fills the window */
+    CHECK(settings_wide_width(-1, 1280, 800) == 232);
+    CHECK(settings_wide_width(-1, 5120, 1440) == 512);     /* 32:9 */
+    CHECK(settings_wide_width(-1, 9000, 1000) == 512);     /* capped */
+    CHECK(settings_wide_width(-1, 600, 1000) == 160);      /* portrait: never narrower */
+    CHECK(settings_set(&s, "video", "widescreen", "off", err, sizeof err) == 0 && s.widescreen == 0);
+    CHECK(settings_wide_width(0, 1920, 1080) == 160);
+    CHECK(settings_set(&s, "video", "widescreen", "1:2", err, sizeof err) == -1);
+    CHECK(settings_set(&s, "video", "widescreen", "wide", err, sizeof err) == -1);
+    CHECK(settings_set(&s, "video", "widescreen", "2.39", err, sizeof err) == 0 && s.widescreen == 2390);
 }
 
 static void test_update(void)
@@ -398,6 +428,7 @@ int main(void)
 {
     test_defaults_round_trip();
     test_parse();
+    test_widescreen_settings();
     test_resample();
     test_update();
     test_speedrun();

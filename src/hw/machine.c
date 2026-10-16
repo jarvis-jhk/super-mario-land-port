@@ -869,6 +869,8 @@ static void lcd_render_current_line(Machine *m)
     };
     lcd_render_line(&m->lcd, &r, m->ppu.ly, m->vram, m->oam,
                     m->framebuffer + m->ppu.ly * LCD_W);
+    if (m->ppu.ly < LCD_H)
+        m->line_regs[m->ppu.ly] = r;
 }
 
 /* The OAM scan (line cycles 0..79) looks at one byte pair per cycle: entry i

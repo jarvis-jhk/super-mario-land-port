@@ -133,6 +133,8 @@ struct Machine {
     int lcd_off_cycles;
     LcdState lcd;
     uint8_t framebuffer[LCD_W * LCD_H];   /* shades 0..3 */
+    LcdRegs line_regs[LCD_H];  /* registers each line was drawn with (output only,
+                                  for the frontend's widescreen view) */
 
     /* cartridge bus: the last value that crossed it, for reads of unmapped RAM */
     uint8_t cart_bus;

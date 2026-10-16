@@ -1,5 +1,35 @@
 # Running state
 
+## Settings & widescreen — 2026-10-16
+
+- Roadmap item mario-settings-widescreen. Done when: a pre-release where Esc
+  or the controller opens an in-game settings menu (widescreen, scaling,
+  palette, volume, timer, controls) navigable by pad, and widescreen fills
+  any window aspect with level scenery from level data while all TASes stay
+  identical. No new issues/PRs at start (only #1, known).
+- Menu (sdl_main.c run_menu): the core is simply not stepped while it is
+  open; Esc/F1, Guide, Select+Start, Select+L1 (PortMaster: gptokeyb quits on
+  Select+Start). Binding pairs "a+b" for controller buttons; the menu action
+  wins over others on the same key (old files keep quit = Escape). Controls
+  page rebinds by key/button press. Changes are saved on close (only fields
+  that differ from the start-up values; CLI overrides stay one-off).
+  After closing, game input is ignored until all buttons are released.
+- Widescreen (widescreen.c, no SDL): Machine.line_regs records each line's
+  LCD registers (written only, never read by the core). Sides: map columns
+  drawn since the level part was entered (WideState tracks the first one),
+  columns ahead decoded from the ROM level data (bank = hActiveRomBank),
+  edge-crossing sprites; HUD, window lines (pause/game over), title, bonus,
+  underground, ending stay blank. Data before the first drawn column can be
+  the underground room (same screen list), so it stays blank.
+- Verified: decoded right side vs the game's own picture 40 frames later on
+  resync11: 97.6 % pixel match (rest: enemies, animated water in 3-2); now
+  in check-frontend (verify/tests/widescreen_check.py, floor 95 %).
+  verify/tests/menu_xvfb.sh drives the menu under Xvfb with xdotool (Esc,
+  widescreen on, palette gray, F12, Esc): both saved, menu.png and a 20:9
+  window picture checked by eye. Unit tests for widescreen values/widths.
+- Open for Jan (not a block): menu with real controllers (Guide/Select+L1 on
+  the Knulli handheld), widescreen on the Deck and an ultrawide screen.
+
 ## Warpzone handoff — 2026-10-16
 
 - Request t_mvavxten267c5a (automatic, from the Warpzone lane). Added
@@ -13,7 +43,9 @@
 - Descriptor games/super-mario-land-port.toml: [launch] has no exec (needs
   linux/deck "*/sml", windows "*/sml.exe"); asset patterns and SHA256SUMS
   match v0.1.0 names; import_args --rom now persists; present could list
-  ~/.local/share/super-mario-land-port/sml.gb. PR status: see below.
+  ~/.local/share/super-mario-land-port/sml.gb. Sent as
+  https://github.com/jarvis-jhk/warpzone/pull/4 (exec, exact asset names,
+  present). Open: C API tiers 1-3, leaderboards, shared screens.
 
 ## Speedrun timer — 2026-10-16
 
@@ -45,6 +77,13 @@
   input aborts in the timing shadow at the time-up (00:1D04); filed issue #1.
 - Open for Jan (not a block): playing with the timer on real setups;
   PortMaster has no default controller bind for the timer (settings.ini).
+- Gates (pipefail) passed: check/check-states/check-models (shadow 0
+  mismatches, resync11 44976 identical polls AGB/CGB/DMG), check-frontend
+  incl. the timer check, check-fault. Evidence: build/speedrun-gates-*.log.
+- Published pre-release https://github.com/jarvis-jhk/super-mario-land-port/releases/tag/v0.2.0
+  (tag on 82cbf71): 12 assets, each HTTP 200 with the expected size; the
+  release binary times resync11 at 12:17.02; a downloaded v0.1.0 updated
+  itself from GitHub to 0.2.0 (hash equal to update.txt). Item closed.
 
 ## Deck integration — 2026-10-16
 

@@ -3,6 +3,19 @@
 The game shows the new sections of this file on the first start of a new
 version. Newest first; one "## <version> - <date>" heading per release.
 
+## 0.3.0 - 2026-10-16
+
+- Settings menu: Esc, or Guide, Select+Start or Select+L1 on a controller
+  (Select+L1 on PortMaster handhelds). Widescreen, scaling, palette,
+  fullscreen, volume, sound, speedrun timer, automatic updates and the
+  controls can be changed with keyboard or controller; changes are saved.
+- Controls can be rebound in the menu: pick an action, press the new key or
+  button.
+- Widescreen: the picture grows sideways to fill 16:9, 16:10, ultrawide or
+  any other screen (up to 32:9) and shows more of the level, decoded from the
+  level data of your own ROM. The game itself is unchanged.
+- Esc now opens the menu; Quit is in the menu.
+
 ## 0.2.0 - 2026-10-16
 
 - Speedrun timer (F8, or "timer = yes" under [speedrun] in settings.ini):

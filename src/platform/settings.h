@@ -17,7 +17,7 @@
 typedef enum {
     ACT_A, ACT_B, ACT_SELECT, ACT_START, ACT_RIGHT, ACT_LEFT, ACT_UP, ACT_DOWN,
     ACT_FAST_FORWARD, ACT_FULLSCREEN, ACT_SCALING, ACT_PALETTE, ACT_SCREENSHOT,
-    ACT_QUIT, ACT_TIMER,
+    ACT_QUIT, ACT_TIMER, ACT_MENU,
     ACT_COUNT
 } Action;
 #define ACT_GAME_BUTTONS 8
@@ -38,6 +38,7 @@ typedef struct {
     int vsync;
     SyncMode sync;
     uint32_t palette[4];        /* 0xFFRRGGBB, lightest first */
+    int widescreen;             /* 0 off, -1 fill the window, else aspect * 1000 (16:9 = 1777) */
     /* audio */
     int mute;
     int volume;                 /* 0..100 */
@@ -73,6 +74,11 @@ int settings_save(const Settings *s, const char *path);
 const char *settings_action_name(Action a);
 const char *settings_scaling_name(ScalingMode m);
 const char *settings_sync_name(SyncMode m);
+/* "off", "on" or "W:H" for a widescreen value. */
+void settings_widescreen_name(int widescreen, char *out, size_t len);
+/* Picture width at 144 lines for a widescreen value and a window size:
+   even, 160..512. */
+int settings_wide_width(int widescreen, int window_w, int window_h);
 /* Preset palettes by index (green, gray, pocket) and name. */
 const char *settings_palette_name(int preset);
 int settings_palette_preset(const char *name, uint32_t out[4]);

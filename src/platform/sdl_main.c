@@ -13,6 +13,7 @@
  *     --sync auto|clock|vsync
  *     --fullscreen, --windowed
  *     --palette NAME      green, gray, pocket or four #RRGGBB colours
+ *     --widescreen off|on|W:H  show more of the level (on: fill the window)
  *     --mute, --volume N  (0..100)
  *     --movie FILE        play back an input movie (one entry per game frame)
  *     --record FILE       record the input to a movie when the game ends
@@ -21,6 +22,7 @@
  *     --frames N          with a window: quit after N frames
  *     --screenshot FILE   save the last frame as PNG (with a window: the
  *                         whole window including the overlays)
+ *     --screenshot-every N  with --headless: save PATH-NNNNNN.png every N frames
  *     --stats             print pacing and audio statistics on exit
  *     --no-update         do not look for new releases this time
  *     --changelog         show the changelog before starting
@@ -41,7 +43,8 @@
  * Default keys: arrows = D-pad, X = A, Z = B, Enter = Start, Right Shift or
  * Backspace = Select, Tab (hold) = fast forward, F9 = next palette, F10 =
  * next scaling mode, F11 or Alt+Enter = fullscreen, F12 = screenshot,
- * F8 = speedrun timer, Esc = quit. Game controllers use SDL's controller mapping (south button
+ * F8 = speedrun timer, Esc or F1 = settings menu (also Guide or Select+Start
+ * on a controller; it has Quit). Game controllers use SDL's controller mapping (south button
  * = A, west/east = B, right shoulder = fast forward); every binding can be
  * changed in the settings file.
  *
@@ -89,6 +92,7 @@
 #include "speedrun.h"
 #include "fault.h"
 #include "text.h"
+#include "widescreen.h"
 #include "update.h"
 #include "update_core.h"
 #include "changelog_text.h"   /* generated from CHANGELOG.md */
@@ -106,21 +110,28 @@
 
 typedef struct {
     Settings set;
+    Settings base;                /* set as of start-up or the last save: what
+                                     differs was changed in the game and is kept */
     char config_path[1024];
     int config_ok;                /* file loaded without errors (safe to rewrite) */
-    int dirty;                    /* scaling/palette/fullscreen changed by hotkeys */
-    int saved_scaling, saved_fullscreen, saved_speedrun;
-    uint32_t saved_palette[4];
 
     SDL_Window *window;
     SDL_Renderer *renderer;
-    SDL_Texture *texture;         /* 160x144, streaming */
+    SDL_Texture *texture;         /* WIDE_MAX_W x 144, streaming */
+    int prescale_w;               /* picture width the sharp texture was made for */
+    const uint8_t *rom;
+    size_t rom_size;
+    uint8_t wide[WIDE_MAX_W * LCD_H];   /* shades of the widescreen picture */
+    int wide_w;                   /* its width (LCD_W when widescreen is off) */
+    WideState wide_state;
     SDL_Texture *prescaled;       /* integer-upscaled copy for sharp scaling */
     int prescale;
     int vsync_on;                 /* current renderer vsync state */
     SDL_GameController *pads[MAX_PADS];
     SDL_Scancode keys[ACT_COUNT][BIND_MAX];
     SDL_GameControllerButton buttons[ACT_COUNT][BIND_MAX];
+    SDL_GameControllerButton buttons2[ACT_COUNT][BIND_MAX];   /* second button of "a+b" */
+    int release_wait;             /* after the menu: no game input until released */
 
     /* pacing */
     int vsync_pacing;             /* one emulated frame per display refresh */
@@ -161,6 +172,7 @@ typedef struct {
     Movie recording;
     const char *record_path;
     const char *screenshot_path;
+    long screenshot_every;        /* --screenshot-every: headless picture series */
 
     /* speedrun timer */
     Speedrun sr;
@@ -253,7 +265,7 @@ static void resolve_bindings(App *app)
         for (int i = 0; i < BIND_MAX; i++) {
             const char *k = app->set.keys[a][i], *b = app->set.buttons[a][i];
             app->keys[a][i] = SDL_SCANCODE_UNKNOWN;
-            app->buttons[a][i] = SDL_CONTROLLER_BUTTON_INVALID;
+            app->buttons[a][i] = app->buttons2[a][i] = SDL_CONTROLLER_BUTTON_INVALID;
             if (k[0]) {
                 app->keys[a][i] = SDL_GetScancodeFromName(k);
                 if (app->keys[a][i] == SDL_SCANCODE_UNKNOWN)
@@ -261,8 +273,16 @@ static void resolve_bindings(App *app)
                             settings_action_name((Action)a));
             }
             if (b[0]) {
-                app->buttons[a][i] = SDL_GameControllerGetButtonFromString(b);
-                if (app->buttons[a][i] == SDL_CONTROLLER_BUTTON_INVALID)
+                char first[BIND_NAME];
+                snprintf(first, sizeof first, "%s", b);
+                char *plus = strchr(first, '+');
+                if (plus) {
+                    *plus = 0;
+                    app->buttons2[a][i] = SDL_GameControllerGetButtonFromString(plus + 1);
+                }
+                app->buttons[a][i] = SDL_GameControllerGetButtonFromString(first);
+                if (app->buttons[a][i] == SDL_CONTROLLER_BUTTON_INVALID ||
+                    (plus && app->buttons2[a][i] == SDL_CONTROLLER_BUTTON_INVALID))
                     fprintf(stderr, "settings: unknown controller button \"%s\" for %s\n", b,
                             settings_action_name((Action)a));
             }
@@ -286,33 +306,40 @@ static void load_settings(App *app, const char *explicit_path)
     } else {
         app->config_ok = 1;
     }
-    app->saved_scaling = app->set.scaling;
-    app->saved_fullscreen = app->set.fullscreen;
-    app->saved_speedrun = app->set.speedrun;
-    memcpy(app->saved_palette, app->set.palette, sizeof app->saved_palette);
 }
 
-/* Hotkey changes are kept: reload the file (so command-line overrides are
-   not persisted) and write back only what the hotkeys changed. */
-static void save_hotkey_changes(App *app)
+/* Changes made with hotkeys and the menu are kept: reload the file (so
+   command-line overrides are not persisted) and write back only what was
+   changed in the game. */
+static void save_changes(App *app)
 {
-    if (!app->dirty || !app->config_ok)
+    if (!app->config_ok || !memcmp(&app->set, &app->base, sizeof app->set))
         return;
     Settings s;
     char err[300];
     settings_defaults(&s);
     if (settings_load(&s, app->config_path, err, sizeof err) < 0)
         return;
-    if (app->set.scaling != (ScalingMode)app->saved_scaling)
-        s.scaling = app->set.scaling;
-    if (app->set.fullscreen != app->saved_fullscreen)
-        s.fullscreen = app->set.fullscreen;
-    if (app->set.speedrun != app->saved_speedrun)
-        s.speedrun = app->set.speedrun;
-    if (memcmp(app->set.palette, app->saved_palette, sizeof app->saved_palette))
-        memcpy(s.palette, app->set.palette, sizeof s.palette);
+    const Settings *now = &app->set, *was = &app->base;
+#define KEEP(field) do { if (memcmp(&now->field, &was->field, sizeof now->field)) \
+        memcpy(&s.field, &now->field, sizeof s.field); } while (0)
+    KEEP(scaling);
+    KEEP(fullscreen);
+    KEEP(palette);
+    KEEP(widescreen);
+    KEEP(mute);
+    KEEP(volume);
+    KEEP(update_check);
+    KEEP(speedrun);
+    KEEP(speedrun_category);
+    for (int a = 0; a < ACT_COUNT; a++) {
+        KEEP(keys[a]);
+        KEEP(buttons[a]);
+    }
+#undef KEEP
     if (settings_save(&s, app->config_path))
         fprintf(stderr, "cannot write %s\n", app->config_path);
+    app->base = app->set;
 }
 
 /* --- window title messages -------------------------------------------- */
@@ -344,10 +371,11 @@ static int action_held(App *app, Action a, const Uint8 *k)
                 continue;
             return 1;
         }
-        SDL_GameControllerButton b = app->buttons[a][i];
+        SDL_GameControllerButton b = app->buttons[a][i], b2 = app->buttons2[a][i];
         if (b != SDL_CONTROLLER_BUTTON_INVALID)
             for (int p = 0; p < MAX_PADS; p++)
-                if (app->pads[p] && SDL_GameControllerGetButton(app->pads[p], b))
+                if (app->pads[p] && SDL_GameControllerGetButton(app->pads[p], b) &&
+                    (b2 == SDL_CONTROLLER_BUTTON_INVALID || SDL_GameControllerGetButton(app->pads[p], b2)))
                     return 1;
     }
     return 0;
@@ -375,6 +403,13 @@ static uint8_t read_buttons(App *app)
     /* The original hardware cannot report opposite directions at once. */
     if ((b & (BTN_LEFT | BTN_RIGHT)) == (BTN_LEFT | BTN_RIGHT)) b &= (uint8_t)~(BTN_LEFT | BTN_RIGHT);
     if ((b & (BTN_UP | BTN_DOWN)) == (BTN_UP | BTN_DOWN)) b &= (uint8_t)~(BTN_UP | BTN_DOWN);
+    /* The buttons that closed the menu do not reach the game. */
+    if (app->release_wait) {
+        if (b)
+            b = 0;
+        else
+            app->release_wait = 0;
+    }
 
     int ff = action_held(app, ACT_FAST_FORWARD, k);
     if (ff != app->fast_forward) {
@@ -428,34 +463,65 @@ static void set_vsync(App *app, int on)
 }
 
 /* The fitted, centred destination for an aspect-preserving scale. */
-static SDL_Rect fit_rect(int ow, int oh, double scale)
+static SDL_Rect fit_rect(int ow, int oh, int w, double scale)
 {
     SDL_Rect r;
-    r.w = (int)(LCD_W * scale + 0.5);
+    r.w = (int)(w * scale + 0.5);
     r.h = (int)(LCD_H * scale + 0.5);
     r.x = (ow - r.w) / 2;
     r.y = (oh - r.h) / 2;
     return r;
 }
 
+/* The picture's width for widescreen at a window size: a fixed aspect, or
+   (on) as wide as the window at the scale the height allows. */
+static int picture_width(App *app, int ow, int oh)
+{
+    if (!app->set.widescreen)
+        return LCD_W;
+    if (app->set.widescreen > 0 || ow <= 0 || oh <= 0)
+        return settings_wide_width(app->set.widescreen, ow, oh);
+    double scale = (double)oh / LCD_H;
+    if (app->set.scaling == SCALE_INTEGER && scale >= 1)
+        scale = (int)scale;
+    return settings_wide_width(-1, ow, (int)(LCD_H * scale + 0.5));
+}
+
+/* Fills app->wide with the picture at width w. */
+static void compose_picture(App *app, int w)
+{
+    Machine *m = core_machine();
+    if (w <= LCD_W) {
+        memcpy(app->wide, m->framebuffer, LCD_W * LCD_H);
+        w = LCD_W;
+    } else {
+        widescreen_render(&app->wide_state, m, app->rom, app->rom_size, w, app->wide);
+    }
+    app->wide_w = w;
+}
+
 /* Draws the game and the overlays without presenting them. */
 static void render_contents(App *app)
 {
-    Machine *m = core_machine();
+    int ow, oh;
+    SDL_GetRendererOutputSize(app->renderer, &ow, &oh);
+    int pw = picture_width(app, ow, oh);
+    compose_picture(app, pw);
+    SDL_Rect src = { 0, 0, pw, LCD_H };
     void *pixels;
     int pitch;
-    if (SDL_LockTexture(app->texture, NULL, &pixels, &pitch) == 0) {
+    if (SDL_LockTexture(app->texture, &src, &pixels, &pitch) == 0) {
         for (int y = 0; y < LCD_H; y++) {
             uint32_t *row = (uint32_t *)((uint8_t *)pixels + y * pitch);
-            for (int x = 0; x < LCD_W; x++)
-                row[x] = app->set.palette[m->framebuffer[y * LCD_W + x] & 3];
+            for (int x = 0; x < pw; x++)
+                row[x] = app->set.palette[app->wide[y * pw + x] & 3];
         }
         SDL_UnlockTexture(app->texture);
     }
 
-    int ow, oh;
-    SDL_GetRendererOutputSize(app->renderer, &ow, &oh);
-    double fit = SDL_min((double)ow / LCD_W, (double)oh / LCD_H);
+    double fit = SDL_min((double)ow / pw, (double)oh / LCD_H);
+    if (app->set.widescreen < 0)
+        fit = (double)oh / LCD_H;     /* the width is cut to the window */
     if (fit <= 0)
         return;
     SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 255);
@@ -468,11 +534,11 @@ static void render_contents(App *app)
         mode = SCALE_NEAREST;
 
     if (mode == SCALE_INTEGER) {
-        SDL_Rect dst = fit_rect(ow, oh, (double)(int)fit);
-        SDL_RenderCopy(app->renderer, app->texture, NULL, &dst);
+        SDL_Rect dst = fit_rect(ow, oh, pw, (double)(int)fit);
+        SDL_RenderCopy(app->renderer, app->texture, &src, &dst);
     } else if (mode == SCALE_NEAREST) {
-        SDL_Rect dst = fit_rect(ow, oh, fit);
-        SDL_RenderCopy(app->renderer, app->texture, NULL, &dst);
+        SDL_Rect dst = fit_rect(ow, oh, pw, fit);
+        SDL_RenderCopy(app->renderer, app->texture, &src, &dst);
     } else {
         /* Sharp: upscale by a whole factor with nearest neighbour, then
            filter the small remaining (down)scale, so pixels stay square
@@ -480,22 +546,23 @@ static void render_contents(App *app)
         int k = (int)fit;
         if (k < fit)
             k++;
-        if (!app->prescaled || app->prescale != k) {
+        if (!app->prescaled || app->prescale != k || app->prescale_w != pw) {
             if (app->prescaled)
                 SDL_DestroyTexture(app->prescaled);
             app->prescaled = SDL_CreateTexture(app->renderer, SDL_PIXELFORMAT_ARGB8888,
-                                               SDL_TEXTUREACCESS_TARGET, LCD_W * k, LCD_H * k);
+                                               SDL_TEXTUREACCESS_TARGET, pw * k, LCD_H * k);
             app->prescale = k;
+            app->prescale_w = pw;
             if (app->prescaled)
                 SDL_SetTextureScaleMode(app->prescaled, SDL_ScaleModeLinear);
         }
-        SDL_Rect dst = fit_rect(ow, oh, fit);
+        SDL_Rect dst = fit_rect(ow, oh, pw, fit);
         if (app->prescaled && SDL_SetRenderTarget(app->renderer, app->prescaled) == 0) {
-            SDL_RenderCopy(app->renderer, app->texture, NULL, NULL);
+            SDL_RenderCopy(app->renderer, app->texture, &src, NULL);
             SDL_SetRenderTarget(app->renderer, NULL);
             SDL_RenderCopy(app->renderer, app->prescaled, NULL, &dst);
         } else {
-            SDL_RenderCopy(app->renderer, app->texture, NULL, &dst);
+            SDL_RenderCopy(app->renderer, app->texture, &src, &dst);
         }
     }
     if (app->set.speedrun)
@@ -519,9 +586,12 @@ static void render_frame(App *app)
 
 static void take_screenshot(App *app)
 {
-    static uint8_t rgb[LCD_W * LCD_H * 3];
-    const uint8_t *fb = core_machine()->framebuffer;
-    for (int i = 0; i < LCD_W * LCD_H; i++) {
+    static uint8_t rgb[WIDE_MAX_W * LCD_H * 3];
+    const uint8_t *fb = app->wide;
+    int w = app->wide_w ? app->wide_w : LCD_W;
+    if (!app->wide_w)
+        memcpy(app->wide, core_machine()->framebuffer, LCD_W * LCD_H);
+    for (int i = 0; i < w * LCD_H; i++) {
         uint32_t c = app->set.palette[fb[i] & 3];
         rgb[i * 3] = (uint8_t)(c >> 16);
         rgb[i * 3 + 1] = (uint8_t)(c >> 8);
@@ -540,7 +610,7 @@ static void take_screenshot(App *app)
         fclose(f);
         snprintf(path, sizeof path, "%s/sml-%s-%d.png", dir, stamp, n);
     }
-    if (png_write_rgb(path, rgb, LCD_W, LCD_H) == 0) {
+    if (png_write_rgb(path, rgb, w, LCD_H) == 0) {
         fprintf(stderr, "screenshot: %s\n", path);
         update_title(app, "screenshot saved");
     } else {
@@ -836,7 +906,394 @@ static void draw_timer(App *app, int ow, int oh)
               box.y + 2 * px + TEXT_CELL_H * big, px, sub);
 }
 
+/* --- settings menu ------------------------------------------------------- */
+
+static int hotkey(App *app, Action a);
+static int changelog_on_new_version(App *app, int force);
+static void save_window_png(App *app, const char *file);
+
+typedef enum { NAV_NONE, NAV_UP, NAV_DOWN, NAV_LEFT, NAV_RIGHT, NAV_OK, NAV_BACK, NAV_QUIT } MenuNav;
+
+enum {
+    MI_RESUME, MI_WIDESCREEN, MI_SCALING, MI_PALETTE, MI_FULLSCREEN, MI_VOLUME, MI_SOUND,
+    MI_TIMER, MI_CATEGORY, MI_UPDATES, MI_CONTROLS, MI_CHANGELOG, MI_QUIT, MI_COUNT
+};
+static const char *const menu_labels[MI_COUNT] = {
+    "Resume", "Widescreen", "Scaling", "Palette", "Fullscreen", "Volume", "Sound",
+    "Speedrun timer", "Timer category", "Automatic updates", "Controls", "What's new",
+    "Quit game",
+};
+static const int wide_values[] = { 0, -1, 1333, 1600, 1777, 2370, 3555 };
+#define WIDE_VALUES (int)(sizeof wide_values / sizeof wide_values[0])
+
+/* The actions the controls page lists, in order. */
+static const Action control_actions[] = {
+    ACT_A, ACT_B, ACT_SELECT, ACT_START, ACT_RIGHT, ACT_LEFT, ACT_UP, ACT_DOWN,
+    ACT_FAST_FORWARD, ACT_MENU, ACT_TIMER, ACT_SCREENSHOT, ACT_FULLSCREEN,
+};
+#define CONTROL_ROWS (int)(sizeof control_actions / sizeof control_actions[0])
+static const char *const control_labels[] = {
+    "A", "B", "Select", "Start", "Right", "Left", "Up", "Down",
+    "Fast forward", "Menu", "Timer", "Screenshot", "Fullscreen",
+};
+
+static int key_is(App *app, Action a, SDL_Scancode sc)
+{
+    for (int i = 0; i < BIND_MAX; i++)
+        if (app->keys[a][i] == sc)
+            return 1;
+    return 0;
+}
+
+/* Menu navigation from the keyboard (fixed keys and the player's game
+   buttons) and from every controller (D-pad, left stick, A/B/Start). */
+static MenuNav menu_nav(App *app, const SDL_Event *e, int *stick)
+{
+    switch (e->type) {
+    case SDL_QUIT:
+        return NAV_QUIT;
+    case SDL_KEYDOWN: {
+        SDL_Scancode sc = e->key.keysym.scancode;
+        if (sc == SDL_SCANCODE_UP || key_is(app, ACT_UP, sc)) return NAV_UP;
+        if (sc == SDL_SCANCODE_DOWN || key_is(app, ACT_DOWN, sc)) return NAV_DOWN;
+        if (sc == SDL_SCANCODE_LEFT || key_is(app, ACT_LEFT, sc)) return NAV_LEFT;
+        if (sc == SDL_SCANCODE_RIGHT || key_is(app, ACT_RIGHT, sc)) return NAV_RIGHT;
+        if (sc == SDL_SCANCODE_RETURN || sc == SDL_SCANCODE_KP_ENTER || sc == SDL_SCANCODE_SPACE ||
+            key_is(app, ACT_A, sc) || key_is(app, ACT_START, sc))
+            return NAV_OK;
+        if (sc == SDL_SCANCODE_ESCAPE || sc == SDL_SCANCODE_BACKSPACE || key_is(app, ACT_B, sc) ||
+            key_is(app, ACT_MENU, sc))
+            return NAV_BACK;
+        return NAV_NONE;
+    }
+    case SDL_CONTROLLERBUTTONDOWN:
+        switch (e->cbutton.button) {
+        case SDL_CONTROLLER_BUTTON_DPAD_UP: return NAV_UP;
+        case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return NAV_DOWN;
+        case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return NAV_LEFT;
+        case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return NAV_RIGHT;
+        case SDL_CONTROLLER_BUTTON_A: case SDL_CONTROLLER_BUTTON_START: return NAV_OK;
+        case SDL_CONTROLLER_BUTTON_B: case SDL_CONTROLLER_BUTTON_BACK:
+        case SDL_CONTROLLER_BUTTON_GUIDE: return NAV_BACK;
+        default: return NAV_NONE;
+        }
+    case SDL_CONTROLLERAXISMOTION: {
+        if (e->caxis.axis != SDL_CONTROLLER_AXIS_LEFTX && e->caxis.axis != SDL_CONTROLLER_AXIS_LEFTY)
+            return NAV_NONE;
+        int v = e->caxis.value, dir = v > 20000 ? 1 : v < -20000 ? -1 : 0;
+        int *last = &stick[e->caxis.axis == SDL_CONTROLLER_AXIS_LEFTY];
+        if (dir == *last)
+            return NAV_NONE;
+        *last = dir;
+        if (e->caxis.axis == SDL_CONTROLLER_AXIS_LEFTY)
+            return dir > 0 ? NAV_DOWN : dir < 0 ? NAV_UP : NAV_NONE;
+        return dir > 0 ? NAV_RIGHT : dir < 0 ? NAV_LEFT : NAV_NONE;
+    }
+    default:
+        return NAV_NONE;
+    }
+}
+
+static void menu_value(App *app, int item, char *out, size_t len)
+{
+    out[0] = 0;
+    switch (item) {
+    case MI_WIDESCREEN: settings_widescreen_name(app->set.widescreen, out, len); break;
+    case MI_SCALING: snprintf(out, len, "%s", settings_scaling_name(app->set.scaling)); break;
+    case MI_PALETTE: {
+        snprintf(out, len, "custom");
+        for (int p = 0; p < PALETTE_PRESETS; p++) {
+            uint32_t c[4];
+            settings_palette_preset(settings_palette_name(p), c);
+            if (!memcmp(c, app->set.palette, sizeof c))
+                snprintf(out, len, "%s", settings_palette_name(p));
+        }
+        break;
+    }
+    case MI_FULLSCREEN: snprintf(out, len, "%s", app->set.fullscreen ? "on" : "off"); break;
+    case MI_VOLUME: snprintf(out, len, "%d%%", app->set.volume); break;
+    case MI_SOUND: snprintf(out, len, "%s", app->set.mute ? "off" : "on"); break;
+    case MI_TIMER: snprintf(out, len, "%s", app->set.speedrun ? "on" : "off"); break;
+    case MI_CATEGORY:
+        snprintf(out, len, "%s%s", speedrun_category_title((SrCategory)app->set.speedrun_category),
+                 app->set.speedrun && app->sr.phase == SR_RUNNING ? " (in a run)" : "");
+        break;
+    case MI_UPDATES: snprintf(out, len, "%s", app->set.update_check ? "on" : "off"); break;
+    default: break;
+    }
+}
+
+/* Changes a setting by one step (dir -1 / +1; OK counts as +1). */
+static void menu_change(App *app, int item, int dir)
+{
+    switch (item) {
+    case MI_WIDESCREEN: {
+        int i = 0;
+        for (int k = 0; k < WIDE_VALUES; k++)
+            if (wide_values[k] == app->set.widescreen)
+                i = k;
+        app->set.widescreen = wide_values[(i + dir + WIDE_VALUES) % WIDE_VALUES];
+        break;
+    }
+    case MI_SCALING:
+        app->set.scaling = (ScalingMode)((app->set.scaling + dir + SCALE_MODES) % SCALE_MODES);
+        break;
+    case MI_PALETTE: {
+        int cur = -1;
+        for (int p = 0; p < PALETTE_PRESETS; p++) {
+            uint32_t c[4];
+            settings_palette_preset(settings_palette_name(p), c);
+            if (!memcmp(c, app->set.palette, sizeof c))
+                cur = p;
+        }
+        int next = cur < 0 ? 0 : (cur + dir + PALETTE_PRESETS) % PALETTE_PRESETS;
+        settings_palette_preset(settings_palette_name(next), app->set.palette);
+        break;
+    }
+    case MI_FULLSCREEN: set_fullscreen(app, !app->set.fullscreen); break;
+    case MI_VOLUME: app->set.volume = SDL_max(0, SDL_min(100, (app->set.volume + 5) / 10 * 10 + dir * 10)); break;
+    case MI_SOUND: app->set.mute = !app->set.mute; break;
+    case MI_TIMER: hotkey(app, ACT_TIMER); break;
+    case MI_CATEGORY:
+        if (app->set.speedrun && app->sr.phase == SR_RUNNING)
+            break;              /* a run keeps its category */
+        sr_save(app);
+        app->set.speedrun_category = (app->set.speedrun_category + 1) % SR_CATEGORIES;
+        if (app->set.speedrun)
+            sr_prepare(app);
+        break;
+    case MI_UPDATES: app->set.update_check = !app->set.update_check; break;
+    default: break;
+    }
+}
+
+static void binds_text(const char binds[BIND_MAX][BIND_NAME], char *out, size_t len)
+{
+    out[0] = 0;
+    for (int i = 0; i < BIND_MAX; i++)
+        if (binds[i][0]) {
+            size_t n = strlen(out);
+            snprintf(out + n, len - n, "%s%s", n ? ", " : "", binds[i]);
+        }
+    if (!out[0])
+        snprintf(out, len, "-");
+}
+
+/* Draws a page: the game dimmed behind a box of rows, row sel highlighted. */
+static void menu_draw(App *app, const char *title, char rows[][64], int n, int sel, const char *hint)
+{
+    enum { CANVAS_W = 320, CANVAS_H = 216, COLS = 50 };
+    render_contents(app);
+    int ow, oh;
+    SDL_GetRendererOutputSize(app->renderer, &ow, &oh);
+    int px = SDL_max(1, SDL_min(ow / CANVAS_W, oh / CANVAS_H));
+    int line = TEXT_CELL_H + 1;
+    int w = (COLS + 2) * TEXT_CELL_W * px, h = (n + 5) * line * px;
+    SDL_Rect box = { (ow - w) / 2, (oh - h) / 2, w, h };
+    SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 120);
+    SDL_RenderFillRect(app->renderer, NULL);
+    SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 220);
+    SDL_RenderFillRect(app->renderer, &box);
+    SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_NONE);
+    int x0 = box.x + TEXT_CELL_W * px, y = box.y + line * px / 2;
+    SDL_SetRenderDrawColor(app->renderer, 255, 200, 40, 255);
+    text_draw(app->renderer, x0, y, px, title);
+    y += 2 * line * px;
+    for (int i = 0; i < n; i++, y += line * px) {
+        if (i == sel) {
+            SDL_Rect bar = { box.x + px, y - px, w - 2 * px, line * px };
+            SDL_SetRenderDrawColor(app->renderer, 60, 90, 160, 255);
+            SDL_RenderFillRect(app->renderer, &bar);
+        }
+        SDL_SetRenderDrawColor(app->renderer, 255, 255, 255, 255);
+        text_draw(app->renderer, x0, y, px, rows[i]);
+    }
+    SDL_SetRenderDrawColor(app->renderer, 160, 160, 160, 255);
+    text_draw(app->renderer, x0, y + line * px / 2, px, hint);
+    SDL_RenderPresent(app->renderer);
+}
+
+/* Waits for the next key or controller button (or 6 s) and makes it the
+   only binding of its kind for the action. */
+static void capture_binding(App *app, Action a, const char *label)
+{
+    char rows[2][64], title[64];
+    snprintf(title, sizeof title, "Controls: %s", label);
+    snprintf(rows[0], sizeof rows[0], "Press a key or a controller button");
+    snprintf(rows[1], sizeof rows[1], "(Esc or wait to cancel)");
+    Uint32 until = SDL_GetTicks() + 6000;
+    while (!SDL_TICKS_PASSED(SDL_GetTicks(), until)) {
+        menu_draw(app, title, rows, 2, -1, "");
+        SDL_Event e;
+        if (!SDL_WaitEventTimeout(&e, 100))
+            continue;
+        if (e.type == SDL_QUIT) {
+            SDL_PushEvent(&e);
+            return;
+        }
+        if (e.type == SDL_KEYDOWN && !e.key.repeat) {
+            if (e.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
+                return;
+            const char *name = SDL_GetScancodeName(e.key.keysym.scancode);
+            if (!name[0])
+                continue;
+            memset(app->set.keys[a], 0, sizeof app->set.keys[a]);
+            snprintf(app->set.keys[a][0], BIND_NAME, "%s", name);
+            break;
+        }
+        if (e.type == SDL_CONTROLLERBUTTONDOWN) {
+            const char *name = SDL_GameControllerGetStringForButton((SDL_GameControllerButton)e.cbutton.button);
+            if (!name)
+                continue;
+            memset(app->set.buttons[a], 0, sizeof app->set.buttons[a]);
+            snprintf(app->set.buttons[a][0], BIND_NAME, "%s", name);
+            break;
+        }
+        if (e.type == SDL_CONTROLLERDEVICEADDED)
+            add_pad(app, e.cdevice.which);
+    }
+    resolve_bindings(app);
+}
+
+/* The controls page. Returns 1 when the window was closed. */
+static int controls_page(App *app)
+{
+    int sel = 0, stick[2] = { 0, 0 };
+    enum { RESET = CONTROL_ROWS, BACK, ROWS };
+    for (;;) {
+        char rows[ROWS][64];
+        for (int i = 0; i < CONTROL_ROWS; i++) {
+            char k[64], b[64];
+            binds_text(app->set.keys[control_actions[i]], k, sizeof k);
+            binds_text(app->set.buttons[control_actions[i]], b, sizeof b);
+            snprintf(rows[i], sizeof rows[i], "%-13s %-20.20s %.15s", control_labels[i], k, b);
+        }
+        snprintf(rows[RESET], sizeof rows[RESET], "Reset all controls");
+        snprintf(rows[BACK], sizeof rows[BACK], "Back");
+        menu_draw(app, "Controls            keyboard             controller", rows, ROWS, sel,
+                  "A: change   B: back");
+        SDL_Event e;
+        if (!SDL_WaitEventTimeout(&e, 100))
+            continue;
+        if (e.type == SDL_CONTROLLERDEVICEADDED)
+            add_pad(app, e.cdevice.which);
+        else if (e.type == SDL_CONTROLLERDEVICEREMOVED)
+            remove_pad(app, e.cdevice.which);
+        switch (menu_nav(app, &e, stick)) {
+        case NAV_QUIT: return 1;
+        case NAV_UP: sel = (sel + ROWS - 1) % ROWS; break;
+        case NAV_DOWN: sel = (sel + 1) % ROWS; break;
+        case NAV_BACK: return 0;
+        case NAV_OK:
+            if (sel == BACK)
+                return 0;
+            if (sel == RESET) {
+                Settings d;
+                settings_defaults(&d);
+                memcpy(app->set.keys, d.keys, sizeof d.keys);
+                memcpy(app->set.buttons, d.buttons, sizeof d.buttons);
+                resolve_bindings(app);
+            } else {
+                capture_binding(app, control_actions[sel], control_labels[sel]);
+            }
+            break;
+        default: break;
+        }
+    }
+}
+
+/* The settings menu. The game stands still while it is open: no frame is
+   run, so nothing here can change what the game computes. */
+static void run_menu(App *app)
+{
+    if (app->headless || !app->renderer)
+        return;
+    if (app->audio) {
+        SDL_ClearQueuedAudio(app->audio);
+        SDL_PauseAudioDevice(app->audio, 1);
+    }
+    int sel = 0, stick[2] = { 0, 0 }, open = 1;
+    while (open) {
+        char rows[MI_COUNT][64];
+        for (int i = 0; i < MI_COUNT; i++) {
+            char v[40];
+            menu_value(app, i, v, sizeof v);
+            snprintf(rows[i], sizeof rows[i], "%-20s %s%s", menu_labels[i], v,
+                     i == MI_CONTROLS ? "..." : "");
+        }
+        menu_draw(app, "Super Mario Land " SML_VERSION, rows, MI_COUNT, sel,
+                  "Up/Down: choose  Left/Right: change  B: back");
+        SDL_Event e;
+        if (!SDL_WaitEventTimeout(&e, 100))
+            continue;
+        if (e.type == SDL_CONTROLLERDEVICEADDED)
+            add_pad(app, e.cdevice.which);
+        else if (e.type == SDL_CONTROLLERDEVICEREMOVED)
+            remove_pad(app, e.cdevice.which);
+        else if (e.type == SDL_KEYDOWN && key_is(app, ACT_SCREENSHOT, e.key.keysym.scancode)) {
+            char path[1200];
+            snprintf(path, sizeof path, "%smenu.png", data_dir());
+            save_window_png(app, path);
+            continue;
+        }
+        MenuNav nav = menu_nav(app, &e, stick);
+        switch (nav) {
+        case NAV_QUIT:
+            core_quit();
+            open = 0;
+            break;
+        case NAV_UP: sel = (sel + MI_COUNT - 1) % MI_COUNT; break;
+        case NAV_DOWN: sel = (sel + 1) % MI_COUNT; break;
+        case NAV_BACK: open = 0; break;
+        case NAV_LEFT: case NAV_RIGHT:
+            menu_change(app, sel, nav == NAV_LEFT ? -1 : 1);
+            break;
+        case NAV_OK:
+            if (sel == MI_RESUME)
+                open = 0;
+            else if (sel == MI_QUIT) {
+                core_quit();
+                open = 0;
+            } else if (sel == MI_CONTROLS) {
+                if (controls_page(app)) {
+                    core_quit();
+                    open = 0;
+                }
+            } else if (sel == MI_CHANGELOG) {
+                if (changelog_on_new_version(app, 1) < 0) {
+                    core_quit();
+                    open = 0;
+                }
+            } else
+                menu_change(app, sel, 1);
+            break;
+        default: break;
+        }
+    }
+    save_changes(app);
+    app->release_wait = 1;
+    app->next_frame_time = 0;
+    app->last_present = 0;
+    app->present_samples = 0;
+    if (app->audio)
+        SDL_PauseAudioDevice(app->audio, 0);
+}
+
 /* --- events ---------------------------------------------------------------- */
+
+/* A controller button press completes binding i of action a: the button
+   itself, or either button of a pair with the other one held. */
+static int pad_chord_pressed(App *app, Action a, int i, const SDL_ControllerButtonEvent *ev)
+{
+    SDL_GameControllerButton b = app->buttons[a][i], b2 = app->buttons2[a][i];
+    if (b2 == SDL_CONTROLLER_BUTTON_INVALID)
+        return b != SDL_CONTROLLER_BUTTON_INVALID && b == ev->button;
+    if (ev->button != b && ev->button != b2)
+        return 0;
+    SDL_GameController *pad = SDL_GameControllerFromInstanceID(ev->which);
+    return pad && SDL_GameControllerGetButton(pad, ev->button == b ? b2 : b);
+}
 
 static int hotkey(App *app, Action a)
 {
@@ -846,14 +1303,12 @@ static int hotkey(App *app, Action a)
         return 1;
     case ACT_FULLSCREEN:
         set_fullscreen(app, !app->set.fullscreen);
-        app->dirty = 1;
         return 1;
     case ACT_SCALING: {
         app->set.scaling = (ScalingMode)((app->set.scaling + 1) % SCALE_MODES);
         char msg[64];
         snprintf(msg, sizeof msg, "scaling: %s", settings_scaling_name(app->set.scaling));
         update_title(app, msg);
-        app->dirty = 1;
         return 1;
     }
     case ACT_PALETTE: {
@@ -868,11 +1323,13 @@ static int hotkey(App *app, Action a)
         char msg[64];
         snprintf(msg, sizeof msg, "palette: %s", settings_palette_name(next));
         update_title(app, msg);
-        app->dirty = 1;
         return 1;
     }
     case ACT_SCREENSHOT:
         take_screenshot(app);
+        return 1;
+    case ACT_MENU:
+        run_menu(app);
         return 1;
     case ACT_TIMER:
         app->set.speedrun = !app->set.speedrun;
@@ -881,7 +1338,6 @@ static int hotkey(App *app, Action a)
         else
             sr_save(app);
         update_title(app, app->set.speedrun ? "speedrun timer on" : "speedrun timer off");
-        app->dirty = 1;
         return 1;
     default:
         return 0;
@@ -903,16 +1359,18 @@ static void handle_events(App *app)
                 hotkey(app, ACT_FULLSCREEN);
                 break;
             }
-            for (int a = ACT_GAME_BUTTONS; a < ACT_COUNT; a++)
-                for (int i = 0; i < BIND_MAX; i++)
-                    if (app->keys[a][i] == e.key.keysym.scancode && hotkey(app, (Action)a))
-                        i = BIND_MAX;
+            /* The menu wins over other actions on the same key (older
+               settings files still bind Escape to quit). */
+            for (int a = ACT_COUNT - 1, done = 0; a >= ACT_GAME_BUTTONS && !done; a--)
+                for (int i = 0; i < BIND_MAX && !done; i++)
+                    if (app->keys[a][i] == e.key.keysym.scancode)
+                        done = hotkey(app, (Action)a);
             break;
         case SDL_CONTROLLERBUTTONDOWN:
-            for (int a = ACT_GAME_BUTTONS; a < ACT_COUNT; a++)
-                for (int i = 0; i < BIND_MAX; i++)
-                    if (app->buttons[a][i] == e.cbutton.button && hotkey(app, (Action)a))
-                        i = BIND_MAX;
+            for (int a = ACT_COUNT - 1, done = 0; a >= ACT_GAME_BUTTONS && !done; a--)
+                for (int i = 0; i < BIND_MAX && !done; i++)
+                    if (pad_chord_pressed(app, (Action)a, i, &e.cbutton))
+                        done = hotkey(app, (Action)a);
             break;
         case SDL_CONTROLLERDEVICEADDED:
             add_pad(app, e.cdevice.which);
@@ -941,14 +1399,33 @@ static void handle_events(App *app)
 
 /* --- core callbacks --------------------------------------------------- */
 
+/* Headless pictures: the game's 160x144, or the widescreen picture (16:9
+   for "on"), as grey shades; with frame >= 0 numbered PATH-NNNNNN.png. */
+static void headless_picture(App *app, long frame)
+{
+    int w = app->set.widescreen ? settings_wide_width(app->set.widescreen > 0 ? app->set.widescreen : 1777, 0, 0)
+                                : LCD_W;
+    char path[1200];
+    if (frame >= 0)
+        snprintf(path, sizeof path, "%s-%06ld.png", app->screenshot_path, frame);
+    else
+        snprintf(path, sizeof path, "%s", app->screenshot_path);
+    compose_picture(app, w);
+    png_write_shades(path, app->wide, w, LCD_H, 1);
+}
+
+
 static void on_frame(void *user)
 {
     App *app = user;
     app->frames++;
+    widescreen_track(&app->wide_state, core_machine());
     if (app->set.speedrun)
         sr_on_frame(app);
     if (app->headless) {
         core_machine()->apu.out_len = 0;
+        if (app->screenshot_every && app->screenshot_path && app->frames % app->screenshot_every == 0)
+            headless_picture(app, app->frames);
         if (app->frames >= app->headless_frames)
             core_quit();
         return;
@@ -1219,6 +1696,7 @@ static void usage(FILE *f)
             "  --sync auto|clock|vsync     frame pacing\n"
             "  --fullscreen | --windowed\n"
             "  --palette green|gray|pocket|\"#RRGGBB #RRGGBB #RRGGBB #RRGGBB\"\n"
+            "  --widescreen off|on|W:H   show more of the level (on: fill the window)\n"
             "  --mute | --volume N         (0..100)\n"
             "  --movie FILE                play back an input movie\n"
             "  --record FILE               record input to a movie on exit\n"
@@ -1226,6 +1704,7 @@ static void usage(FILE *f)
             "                              run N frames without window or audio\n"
             "  --frames N                  quit after N frames\n"
             "  --screenshot FILE           save the last frame (the window) as PNG\n"
+            "  --screenshot-every N        with --headless: PNG series FILE-NNNNNN.png\n"
             "  --stats                     print pacing/audio statistics on exit\n"
             "  --no-update                 do not look for new releases\n"
             "  --changelog                 show the changelog first\n"
@@ -1261,6 +1740,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--scaling") && has) OVERRIDE("video", "scaling", argv[++i]);
         else if (!strcmp(a, "--sync") && has) OVERRIDE("video", "sync", argv[++i]);
         else if (!strcmp(a, "--palette") && has) OVERRIDE("video", "palette", argv[++i]);
+        else if (!strcmp(a, "--widescreen") && has) OVERRIDE("video", "widescreen", argv[++i]);
         else if (!strcmp(a, "--fullscreen")) OVERRIDE("video", "fullscreen", "yes");
         else if (!strcmp(a, "--windowed")) OVERRIDE("video", "fullscreen", "no");
         else if (!strcmp(a, "--mute")) OVERRIDE("audio", "mute", "yes");
@@ -1272,6 +1752,7 @@ int main(int argc, char **argv)
             app.headless_frames = atol(argv[++i]);
         } else if (!strcmp(a, "--frames") && has) app.headless_frames = atol(argv[++i]);
         else if (!strcmp(a, "--screenshot") && has) app.screenshot_path = argv[++i];
+        else if (!strcmp(a, "--screenshot-every") && has) app.screenshot_every = atol(argv[++i]);
         else if (!strcmp(a, "--stats")) app.stats = 1;
         else if (!strcmp(a, "--no-update")) no_update = 1;
         else if (!strcmp(a, "--changelog")) force_changelog = 1;
@@ -1303,6 +1784,7 @@ int main(int argc, char **argv)
         }
     }
 
+    app.base = app.set;
     if (app.set.speedrun)
         sr_prepare(&app);
     if (lss_path && import_lss(&app, lss_path))
@@ -1328,6 +1810,8 @@ int main(int argc, char **argv)
                     "(Rev A / v1.1), SHA1 418203621b887caa090215d97e3f509b79affd3e.",
                     rom_used, core_rom_description(version));
     keep_launcher_rom(rom_path, rom, rom_size);
+    app.rom = rom;
+    app.rom_size = rom_size;
     if (movie_path) {
         if (movie_load(&app.movie, movie_path)) {
             fprintf(stderr, "cannot load movie %s\n", movie_path);
@@ -1379,7 +1863,7 @@ int main(int argc, char **argv)
         if (SDL_GetRendererInfo(app.renderer, &info) == 0)
             app.vsync_on = (info.flags & SDL_RENDERER_PRESENTVSYNC) != 0;
         app.texture = SDL_CreateTexture(app.renderer, SDL_PIXELFORMAT_ARGB8888,
-                                        SDL_TEXTUREACCESS_STREAMING, LCD_W, LCD_H);
+                                        SDL_TEXTUREACCESS_STREAMING, WIDE_MAX_W, LCD_H);
         if (!app.texture) {
             fault_report();
             return fail(0, "cannot create texture: %s", SDL_GetError());
@@ -1433,8 +1917,8 @@ int main(int argc, char **argv)
                    app.sync.last_adjust * 100);
     }
 
-    if (app.screenshot_path && app.headless)
-        png_write_shades(app.screenshot_path, m->framebuffer, LCD_W, LCD_H, 1);
+    if (app.screenshot_path && app.headless && !app.screenshot_every)
+        headless_picture(&app, -1);
     else if (app.screenshot_path && app.renderer) {
         render_contents(&app);
         save_window_png(&app, app.screenshot_path);
@@ -1446,7 +1930,7 @@ int main(int argc, char **argv)
     if (app.sr_report && app.sr.phase == SR_RUNNING)
         printf("running %d splits\n", app.sr.split);
     sr_save(&app);
-    save_hotkey_changes(&app);
+    save_changes(&app);
     for (int p = 0; p < MAX_PADS; p++)
         if (app.pads[p])
             SDL_GameControllerClose(app.pads[p]);

@@ -23,7 +23,8 @@ Linux:      unpack the tarball and start ./sml, or make the AppImage
             executable and start it.
 Windows:    unzip and start sml.exe (Windows 10 or later).
 PortMaster: unzip into the ports folder of your handheld (it adds
-            "Super Mario Land.sh" and supermarioland/); Select+Start quits.
+            "Super Mario Land.sh" and supermarioland/); Select+Start quits,
+            Select+L1 opens the settings menu.
 Steam Deck: in Desktop Mode unpack the steamdeck archive and run install.sh.
             It adds a "Super Mario Land" desktop entry and, after you exit
             Steam, a non-Steam game with its own artwork. Run it again to
@@ -44,9 +45,10 @@ Controls
 D-pad: arrow keys / D-pad / left stick   A: X / south button
 B: Z / west or east button               Start: Enter / Start
 Select: Right Shift, Backspace / Back     Fast forward: Tab / right shoulder
-F8 speedrun timer, F9 palette, F10 scaling, F11 fullscreen, F12 screenshot,
-Esc quit. Speedrun timer: [speedrun] timer = yes in settings.ini.
-Bindings live in settings.ini (~/.config/super-mario-land-port/ on Linux,
+Settings menu (widescreen, scaling, palette, volume, timer, controls, quit):
+Esc / Guide, Select+Start or Select+L1. F8 speedrun timer, F9 palette,
+F10 scaling, F11 fullscreen, F12 screenshot.
+Bindings can be changed in the menu and live in settings.ini (~/.config/super-mario-land-port/ on Linux,
 the data directory on Windows).
 
 Crashes are reported anonymously (app, version and platform only; no files,

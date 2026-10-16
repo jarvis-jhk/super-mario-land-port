@@ -108,7 +108,7 @@ $(BUILD)/windows-x86_64/sdl_hello.exe: $(HELLO)
 CORE_SRC := src/core/core.c src/core/rom_id.c src/core/shadow.c src/core/rt_shadow.c $(ACCESS_TABLE) \
             $(GAME_SRC) src/util/sha1.c
 PORT_SRC := src/platform/fault.c src/platform/sdl_main.c src/platform/settings.c src/platform/audio_sync.c \
-            src/platform/text.c src/platform/update.c src/platform/update_core.c src/platform/speedrun.c \
+            src/platform/text.c src/platform/update.c src/platform/update_core.c src/platform/speedrun.c src/platform/widescreen.c \
             src/util/sha256.c $(CORE_SRC) $(HW_SRC) src/util/movie.c verify/common/png.c
 # The changelog shown on the first start of a new version is built in.
 CHANGELOG_H := $(BUILD)/gen/changelog_text.h
@@ -178,6 +178,10 @@ check-frontend: $(BUILD)/frontend_test $(FRONTEND_BINARY) check-packaging
 	$(FRONTEND_BINARY) --rom rom/sml.gb --headless 600 | grep -qx 'frames=600 polls=[0-9]*'
 	$(FRONTEND_BINARY) --rom rom/sml.gb --model agb --movie $(BUILD)/resync11.movie --headless 44100 \
 	    --speedrun-report | tee $(BUILD)/speedrun-resync11.log | grep -qE '^split 4-3 +12:17.02 cycles=3091287748 .* finish$$'
+	rm -rf $(BUILD)/widescreen-check && mkdir -p $(BUILD)/widescreen-check
+	$(FRONTEND_BINARY) --rom rom/sml.gb --model agb --movie $(BUILD)/resync11.movie --headless 44100 \
+	    --widescreen 32:9 --screenshot $(BUILD)/widescreen-check/f --screenshot-every 20 | grep -qx 'frames=44100 polls=[0-9]*'
+	python3 -I verify/tests/widescreen_check.py $(BUILD)/widescreen-check 5 40 0.95 | tee $(BUILD)/widescreen-check.log
 
 # Release packaging without a ROM: Steam shortcut editing on temporary
 # profiles, launcher syntax and the artwork generator.

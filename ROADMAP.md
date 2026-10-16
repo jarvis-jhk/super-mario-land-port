@@ -29,6 +29,13 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
    real-Deck checks in the [acceptance criteria](docs/STEAM_DECK.md).
 4. In-game settings and controller navigation, widescreen at any aspect ratio,
    and RetroAchievements integration with achievement overviews.
+   Settings & widescreen done 2026-10-16 (v0.3.0): settings menu over the
+   paused game (Esc/F1, Guide, Select+Start, Select+L1), pad navigation,
+   rebinding, saved changes; widescreen up to 32:9 that fills the window or
+   keeps a fixed aspect, sides decoded from the ROM's level data
+   ([docs/PLAYING.md](docs/PLAYING.md)). Open: RetroAchievements; sides of
+   the boss-gate scene and after checkpoints fill in only as columns are
+   drawn; enemies appear at the game's own screen edge.
 5. Speedrun timer and automatic level splits, practice/statistics tools and
    LiveSplit import/export. Verify current category rules before implementation;
    measure emulated cycles, including fast-forwarded tally/fake-Daisy scenes.

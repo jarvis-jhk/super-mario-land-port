@@ -9,7 +9,7 @@
 
 static const char *const action_names[ACT_COUNT] = {
     "a", "b", "select", "start", "right", "left", "up", "down",
-    "fast_forward", "fullscreen", "scaling", "palette", "screenshot", "quit", "timer",
+    "fast_forward", "fullscreen", "scaling", "palette", "screenshot", "quit", "timer", "menu",
 };
 
 static const char *const scaling_names[SCALE_MODES] = { "integer", "sharp", "nearest" };
@@ -24,16 +24,59 @@ static const struct { const char *name; uint32_t c[4]; } palettes[PALETTE_PRESET
 /* Default bindings: "|" separates alternatives. */
 static const char *const default_keys[ACT_COUNT] = {
     "X", "Z", "Right Shift|Backspace", "Return", "Right", "Left", "Up", "Down",
-    "Tab", "F11", "F10", "F9", "F12", "Escape", "F8",
+    "Tab", "F11", "F10", "F9", "F12", "", "F8", "Escape|F1",
 };
 static const char *const default_buttons[ACT_COUNT] = {
     "a", "b|x", "back", "start", "dpright", "dpleft", "dpup", "dpdown",
-    "rightshoulder", "", "", "", "", "", "",
+    "rightshoulder", "", "", "", "", "", "", "guide|back+start|back+leftshoulder",
 };
 
 const char *settings_action_name(Action a) { return a < ACT_COUNT ? action_names[a] : "?"; }
 const char *settings_scaling_name(ScalingMode m) { return m < SCALE_MODES ? scaling_names[m] : "?"; }
 const char *settings_sync_name(SyncMode m) { return m < SYNC_MODES ? sync_names[m] : "?"; }
+void settings_widescreen_name(int w, char *out, size_t len)
+{
+    if (w == 0)
+        snprintf(out, len, "off");
+    else if (w < 0)
+        snprintf(out, len, "on");
+    else if (w == 1333) snprintf(out, len, "4:3");
+    else if (w == 1600) snprintf(out, len, "16:10");
+    else if (w == 1777) snprintf(out, len, "16:9");
+    else if (w == 2370) snprintf(out, len, "64:27");
+    else if (w == 3555) snprintf(out, len, "32:9");
+    else
+        snprintf(out, len, "%d.%03d:1", w / 1000, w % 1000);
+}
+
+int settings_wide_width(int w, int ww, int wh)
+{
+    double aspect = w > 0 ? w / 1000.0 : w < 0 && ww > 0 && wh > 0 ? (double)ww / wh : 0;
+    int width = (int)(aspect * 144 + 0.999);
+    width += width & 1;
+    return width < 160 ? 160 : width > 512 ? 512 : width;
+}
+
+static int parse_widescreen(const char *v, int *out)
+{
+    if (!strcmp(v, "off") || !strcmp(v, "no")) { *out = 0; return 0; }
+    if (!strcmp(v, "on") || !strcmp(v, "yes") || !strcmp(v, "auto")) { *out = -1; return 0; }
+    char *end;
+    double a = strtod(v, &end), b = 1;
+    if (end == v)
+        return -1;
+    if (*end == ':') {
+        const char *p = end + 1;
+        b = strtod(p, &end);
+        if (end == p || b <= 0)
+            return -1;
+    }
+    if (*end || a / b < 1.0 || a / b > 3.6)
+        return -1;
+    *out = (int)(a / b * 1000);
+    return 0;
+}
+
 const char *settings_palette_name(int p) { return p >= 0 && p < PALETTE_PRESETS ? palettes[p].name : NULL; }
 
 int settings_palette_preset(const char *name, uint32_t out[4])
@@ -169,6 +212,7 @@ int settings_set(Settings *s, const char *section, const char *key, const char *
         else if (!strcmp(key, "fullscreen")) ok = parse_bool(value, &s->fullscreen);
         else if (!strcmp(key, "vsync")) ok = parse_bool(value, &s->vsync);
         else if (!strcmp(key, "palette")) ok = parse_palette(value, s->palette);
+        else if (!strcmp(key, "widescreen")) ok = parse_widescreen(value, &s->widescreen);
         else if (!strcmp(key, "scaling")) {
             if ((i = find_name(scaling_names, SCALE_MODES, value)) >= 0) { s->scaling = (ScalingMode)i; ok = 0; }
         } else if (!strcmp(key, "sync")) {
@@ -298,6 +342,12 @@ int settings_save(const Settings *s, const char *path)
     else
         fprintf(f, "palette = #%06X #%06X #%06X #%06X\n", s->palette[0] & 0xFFFFFF,
                 s->palette[1] & 0xFFFFFF, s->palette[2] & 0xFFFFFF, s->palette[3] & 0xFFFFFF);
+    char wide[24];
+    settings_widescreen_name(s->widescreen, wide, sizeof wide);
+    fprintf(f,
+            "# show more of the level left and right: off | on (fill the window,\n"
+            "# up to 32:9) | an aspect ratio such as 16:9. Presentation only.\n"
+            "widescreen = %s\n", wide);
     fprintf(f,
             "# speed while fast_forward is held: 0 = as fast as possible, N = N times\n"
             "fast_forward_speed = %d\n\n"
@@ -308,7 +358,8 @@ int settings_save(const Settings *s, const char *path)
             "# wanted output latency in milliseconds (16..500)\n"
             "latency = %d\n\n"
             "[keyboard]\n"
-            "# SDL key names, separated by commas; none = unbound\n",
+            "# SDL key names, separated by commas; none = unbound. menu opens the\n"
+            "# settings menu (and wins over other actions on the same key)\n",
             s->fast_forward_speed, s->mute ? "yes" : "no", s->volume, s->latency_ms);
     for (int a = 0; a < ACT_COUNT; a++) {
         fprintf(f, "%s = ", action_names[a]);
@@ -318,7 +369,7 @@ int settings_save(const Settings *s, const char *path)
             "\n[controller]\n"
             "# SDL game controller buttons: a b x y back guide start leftstick\n"
             "# rightstick leftshoulder rightshoulder dpup dpdown dpleft dpright\n"
-            "# misc1 paddle1..paddle4 touchpad\n"
+            "# misc1 paddle1..paddle4 touchpad; a+b = both held (menu only)\n"
             "stick = %s\n"
             "deadzone = %d\n", s->stick ? "yes" : "no", s->deadzone);
     for (int a = 0; a < ACT_COUNT; a++) {

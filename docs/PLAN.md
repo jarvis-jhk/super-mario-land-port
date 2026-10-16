@@ -167,6 +167,14 @@ may only change presentation, never game state.
 1. Cycle-exact port, verified (core work, see phases below).
 2. **Any aspect ratio**: ultrawide screens show much more of the world. Must
    not change game logic (TAS sync); the extra area is drawn from level data.
+   **Implemented 2026-10-16 (v0.3.0, src/platform/widescreen.c):** the
+   hardware model records each line's LCD registers (output only); the
+   frontend keeps the game's 160 pixels and adds sides from the background
+   map (columns drawn since the level part was entered) and, to the right,
+   columns decoded from the level data like load_next_column. Edge-crossing
+   sprites are drawn; window lines, the HUD and non-level scenes stay blank.
+   `make check-frontend` compares the decoded sides with the game's own
+   pictures 40 frames later over resync11 (floor 95 %).
 3. **RetroAchievements** integrated (rcheevos), with nice overviews in the
    menu. The port keeps the original memory map, so the official
    achievement set's memory conditions work unchanged.
@@ -310,7 +318,7 @@ So the port models the CPU's *timing* (not its instruction semantics):
 | 6 | Translate all code to readable C (bottom-up) | done: 205 of 205 inventoried routines in C, 230 registry entries |
 | 7 | Main loop + interrupt handlers in C; remove the interpreter; pure-C build passes all checks | done: interpreter-free core, register B tracked by the shadow; all lockstep checks pass |
 | 8 | SDL2 frontend polish (audio pacing, input config, scaling) | done for Linux: settings file, bindings, rate-controlled audio, vsync/clock pacing, scaling modes, AppImages (amd64, arm64); Windows builds but is untested |
-| 9 | Widescreen, RetroAchievements + menu, speedrun tools, level editor, Windows package | todo |
+| 9 | Widescreen, RetroAchievements + menu, speedrun tools, level editor, Windows package | in progress: Windows package, speedrun timer, settings menu and widescreen done (v0.2.0, v0.3.0); RetroAchievements, practice tools, editor open |
 
 ### How to verify (all must pass before a commit)
 
