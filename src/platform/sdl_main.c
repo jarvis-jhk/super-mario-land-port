@@ -88,6 +88,7 @@
 #include "../core/core.h"
 #include "../util/movie.h"
 #include "../../verify/common/png.h"
+#include "achievements.h"
 #include "audio_sync.h"
 #include "settings.h"
 #include "speedrun.h"
@@ -183,6 +184,13 @@ typedef struct {
     char sr_msg[48];              /* last split, shown for a while */
     int sr_msg_kind;              /* 0 neutral, 1 ahead, 2 behind, 3 gold */
     Uint32 sr_msg_until;
+
+    /* RetroAchievements */
+    int ach_report;               /* --achievements-report */
+    char ach_msg[120];            /* pop-up over the game */
+    Uint32 ach_msg_until, ach_msg_shown;
+    char ach_prog[80];            /* progress of a measured achievement */
+    Uint32 ach_prog_until;
 } App;
 
 static uint8_t *load_file(const char *path, size_t *size);
@@ -333,6 +341,8 @@ static void save_changes(App *app)
     KEEP(update_check);
     KEEP(speedrun);
     KEEP(speedrun_category);
+    KEEP(achievements);
+    KEEP(achievement_popups);
     for (int a = 0; a < ACT_COUNT; a++) {
         KEEP(keys[a]);
         KEEP(buttons[a]);
@@ -502,6 +512,36 @@ static void compose_picture(App *app, int w)
 }
 
 /* Draws the game and the overlays without presenting them. */
+/* Achievement pop-up at the top of the window, progress bottom left. */
+static void draw_achievement_popup(App *app, int ow, int oh)
+{
+    int px = SDL_max(1, oh / 240);
+    if (app->ach_prog_until) {
+        int pw = (int)strlen(app->ach_prog) * TEXT_CELL_W * px + 4 * px;
+        SDL_Rect box = { 2 * px, oh - (TEXT_CELL_H + 4) * px - 2 * px, pw, (TEXT_CELL_H + 4) * px };
+        SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 200);
+        SDL_RenderFillRect(app->renderer, &box);
+        SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_NONE);
+        SDL_SetRenderDrawColor(app->renderer, 200, 200, 200, 255);
+        text_draw(app->renderer, box.x + 2 * px, box.y + 2 * px, px, app->ach_prog);
+    }
+    if (!app->ach_msg_until)
+        return;
+    int w = (int)strlen(app->ach_msg) * TEXT_CELL_W * px + 6 * px;
+    if (w > ow) {
+        px = 1;
+        w = (int)strlen(app->ach_msg) * TEXT_CELL_W + 6;
+    }
+    SDL_Rect bar = { (ow - w) / 2, 2 * px, w, (TEXT_CELL_H + 4) * px };
+    SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 210);
+    SDL_RenderFillRect(app->renderer, &bar);
+    SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_NONE);
+    SDL_SetRenderDrawColor(app->renderer, 255, 200, 40, 255);
+    text_draw(app->renderer, bar.x + 3 * px, bar.y + 2 * px, px, app->ach_msg);
+}
+
 static void render_contents(App *app)
 {
     int ow, oh;
@@ -568,6 +608,8 @@ static void render_contents(App *app)
     }
     if (app->set.speedrun)
         draw_timer(app, ow, oh);
+    if (app->ach_msg_until || app->ach_prog_until)
+        draw_achievement_popup(app, ow, oh);
     if (app->banner_until) {
         int px = SDL_max(1, oh / 240);
         int w = (int)strlen(app->banner) * TEXT_CELL_W * px + 4 * px;
@@ -917,11 +959,11 @@ typedef enum { NAV_NONE, NAV_UP, NAV_DOWN, NAV_LEFT, NAV_RIGHT, NAV_OK, NAV_BACK
 
 enum {
     MI_RESUME, MI_WIDESCREEN, MI_SCALING, MI_PALETTE, MI_FULLSCREEN, MI_VOLUME, MI_SOUND,
-    MI_TIMER, MI_CATEGORY, MI_UPDATES, MI_CONTROLS, MI_CHANGELOG, MI_QUIT, MI_COUNT
+    MI_TIMER, MI_CATEGORY, MI_UPDATES, MI_ACHIEVEMENTS, MI_CONTROLS, MI_CHANGELOG, MI_QUIT, MI_COUNT
 };
 static const char *const menu_labels[MI_COUNT] = {
     "Resume", "Widescreen", "Scaling", "Palette", "Fullscreen", "Volume", "Sound",
-    "Speedrun timer", "Timer category", "Automatic updates", "Controls", "What's new",
+    "Speedrun timer", "Timer category", "Automatic updates", "RetroAchievements", "Controls", "What's new",
     "Quit game",
 };
 static const int wide_values[] = { 0, -1, 1333, 1600, 1777, 2370, 3555 };
@@ -1020,6 +1062,9 @@ static void menu_value(App *app, int item, char *out, size_t len)
                  app->set.speedrun && app->sr.phase == SR_RUNNING ? " (in a run)" : "");
         break;
     case MI_UPDATES: snprintf(out, len, "%s", app->set.update_check ? "on" : "off"); break;
+    case MI_ACHIEVEMENTS:
+        snprintf(out, len, "%s", !ach_running() ? "off" : ach_logged_in() ? "signed in" : "not signed in");
+        break;
     default: break;
     }
 }
@@ -1090,6 +1135,7 @@ static void menu_draw(App *app, const char *title, char rows[][64], int n, int s
     int px = SDL_max(1, SDL_min(ow / CANVAS_W, oh / CANVAS_H));
     int line = TEXT_CELL_H + 1;
     int w = (COLS + 2) * TEXT_CELL_W * px, h = (n + 5) * line * px;
+    ach_idle();                 /* pages redraw at least every 100 ms */
     SDL_Rect box = { (ow - w) / 2, (oh - h) / 2, w, h };
     SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 120);
@@ -1204,6 +1250,246 @@ static int controls_page(App *app)
     }
 }
 
+/* Text entry for the sign-in: typed on a keyboard or picked from a letter
+   grid with the controller (A types, B deletes, Start finishes). Returns 1
+   with the text in buf, 0 when cancelled, -1 when the window was closed. */
+static int text_entry(App *app, const char *prompt, char *buf, size_t len, int hidden)
+{
+    static const char *const grid[] = {
+        "abcdefghijklm", "nopqrstuvwxyz", "ABCDEFGHIJKLM", "NOPQRSTUVWXYZ", "0123456789-_.",
+        "!@#$%&*+=?/~,",
+    };
+    enum { GRID_ROWS = 6, GRID_COLS = 13, KEYS = 4, ROWS = GRID_ROWS + 3 };
+    static const char *const keys[KEYS] = { "Space", "Delete", "Done", "Cancel" };
+    int cx = 0, cy = 0, stick[2] = { 0, 0 }, result = -2;
+    buf[0] = 0;
+    SDL_StartTextInput();
+    while (result == -2) {
+        char rows[ROWS][64];
+        size_t n = strlen(buf);
+        if (hidden)
+            snprintf(rows[0], sizeof rows[0], "> %.*s_", (int)SDL_min(n, 40), "****************************************");
+        else
+            snprintf(rows[0], sizeof rows[0], "> %.40s_", n > 40 ? buf + n - 40 : buf);
+        rows[1][0] = 0;
+        for (int r = 0; r < GRID_ROWS; r++) {
+            char *o = rows[r + 2];
+            for (int i = 0; i < GRID_COLS; i++) {
+                o[2 * i] = cy == r && cx == i ? '[' : cy == r && cx == i - 1 ? ']' : ' ';
+                o[2 * i + 1] = grid[r][i];
+            }
+            o[2 * GRID_COLS] = cy == r && cx == GRID_COLS - 1 ? ']' : ' ';
+            o[2 * GRID_COLS + 1] = 0;
+        }
+        char *o = rows[GRID_ROWS + 2];
+        o[0] = 0;
+        for (int i = 0; i < KEYS; i++) {
+            size_t k = strlen(o);
+            snprintf(o + k, 64 - k, cy == GRID_ROWS && cx == i ? "[%s] " : " %s  ", keys[i]);
+        }
+        menu_draw(app, prompt, rows, ROWS, -1, "Type, or A: pick  B: delete  Start: done");
+        SDL_Event e;
+        if (!SDL_WaitEventTimeout(&e, 100))
+            continue;
+        int pick = 0;
+        if (e.type == SDL_QUIT) {
+            result = -1;
+            break;
+        }
+        if (e.type == SDL_TEXTINPUT) {
+            for (const char *t = e.text.text; *t; t++)
+                if (*t > ' ' - 1 && *t < 127 && strlen(buf) + 1 < len) {
+                    size_t k = strlen(buf);
+                    buf[k] = *t;
+                    buf[k + 1] = 0;
+                }
+            continue;
+        }
+        if (e.type == SDL_KEYDOWN) {
+            switch (e.key.keysym.scancode) {
+            case SDL_SCANCODE_RETURN: case SDL_SCANCODE_KP_ENTER: result = 1; break;
+            case SDL_SCANCODE_ESCAPE: result = 0; break;
+            case SDL_SCANCODE_BACKSPACE: if (n) buf[n - 1] = 0; break;
+            case SDL_SCANCODE_UP: cy = (cy + GRID_ROWS) % (GRID_ROWS + 1); break;
+            case SDL_SCANCODE_DOWN: cy = (cy + 1) % (GRID_ROWS + 1); break;
+            case SDL_SCANCODE_LEFT: cx--; break;
+            case SDL_SCANCODE_RIGHT: cx++; break;
+            default: break;
+            }
+        } else if (e.type == SDL_CONTROLLERBUTTONDOWN && e.cbutton.button == SDL_CONTROLLER_BUTTON_START) {
+            result = 1;
+        } else if (e.type == SDL_CONTROLLERBUTTONDOWN && e.cbutton.button == SDL_CONTROLLER_BUTTON_GUIDE) {
+            result = 0;
+        } else if (e.type == SDL_CONTROLLERBUTTONDOWN || e.type == SDL_CONTROLLERAXISMOTION) {
+            switch (menu_nav(app, &e, stick)) {
+            case NAV_UP: cy = (cy + GRID_ROWS) % (GRID_ROWS + 1); break;
+            case NAV_DOWN: cy = (cy + 1) % (GRID_ROWS + 1); break;
+            case NAV_LEFT: cx--; break;
+            case NAV_RIGHT: cx++; break;
+            case NAV_OK: pick = 1; break;
+            case NAV_BACK: if (n) buf[n - 1] = 0; break;
+            default: break;
+            }
+        } else if (e.type == SDL_CONTROLLERDEVICEADDED)
+            add_pad(app, e.cdevice.which);
+        int width = cy == GRID_ROWS ? KEYS : GRID_COLS;
+        cx = (cx + width) % width;
+        if (pick) {
+            char c = 0;
+            if (cy < GRID_ROWS)
+                c = grid[cy][cx];
+            else if (cx == 0)
+                c = ' ';
+            else if (cx == 1 && n)
+                buf[n - 1] = 0;
+            else if (cx == 2)
+                result = 1;
+            else if (cx == 3)
+                result = 0;
+            if (c && strlen(buf) + 1 < len) {
+                buf[n] = c;
+                buf[n + 1] = 0;
+            }
+        }
+    }
+    SDL_StopTextInput();
+    return result;
+}
+
+/* The achievement list: unlocked ones marked with *, progress where the
+   set measures it; the chosen one's description below. */
+static int achievement_list_page(App *app)
+{
+    enum { VISIBLE = 12, MAX_ACH = 256 };
+    static AchRow list[MAX_ACH];
+    int sel = 0, top = 0, stick[2] = { 0, 0 };
+    for (;;) {
+        char summary[96], rows[VISIBLE + 4][64];
+        int n = ach_list(list, MAX_ACH, summary, sizeof summary), shown = 0;
+        if (!n) {
+            char st[96];
+            ach_status(st, sizeof st);
+            snprintf(rows[shown++], 64, "No achievement set loaded");
+            snprintf(rows[shown++], 64, "%.50s", st);
+        }
+        sel = n ? SDL_min(sel, n - 1) : 0;
+        if (sel < top)
+            top = sel;
+        if (sel >= top + VISIBLE)
+            top = sel - VISIBLE + 1;
+        for (int i = top; i < n && i < top + VISIBLE; i++) {
+            char right[24];
+            if (list[i].progress[0])
+                snprintf(right, sizeof right, "%s", list[i].progress);
+            else
+                snprintf(right, sizeof right, "%u pts", list[i].points);
+            snprintf(rows[shown++], 64, "%c %-38.38s %8s", list[i].unlocked ? '*' : ' ', list[i].title, right);
+        }
+        int sel_row = n ? sel - top : -1;
+        if (n) {
+            char wrapped[512];
+            rows[shown++][0] = 0;
+            text_wrap(list[sel].description, 50, wrapped, sizeof wrapped);
+            char *line = wrapped;
+            for (int k = 0; k < 2 && *line; k++) {
+                size_t l = strcspn(line, "\n");
+                snprintf(rows[shown++], 64, "%.*s", (int)SDL_min(l, 60), line);
+                line += l + (line[l] == '\n');
+            }
+        }
+        char title[64];
+        snprintf(title, sizeof title, "Achievements  %s", n ? summary : "");
+        menu_draw(app, title, rows, shown, sel_row, "*: unlocked   Up/Down: choose   B: back");
+        SDL_Event e;
+        if (!SDL_WaitEventTimeout(&e, 100))
+            continue;
+        if (e.type == SDL_KEYDOWN && key_is(app, ACT_SCREENSHOT, e.key.keysym.scancode)) {
+            char path[1200];
+            snprintf(path, sizeof path, "%sachievements.png", data_dir());
+            save_window_png(app, path);
+            continue;
+        }
+        if (e.type == SDL_CONTROLLERDEVICEADDED)
+            add_pad(app, e.cdevice.which);
+        switch (menu_nav(app, &e, stick)) {
+        case NAV_QUIT: return 1;
+        case NAV_UP: if (n) sel = (sel + n - 1) % n; break;
+        case NAV_DOWN: if (n) sel = (sel + 1) % n; break;
+        case NAV_LEFT: sel = SDL_max(0, sel - VISIBLE); break;
+        case NAV_RIGHT: if (n) sel = SDL_min(n - 1, sel + VISIBLE); break;
+        case NAV_BACK: case NAV_OK: return 0;
+        default: break;
+        }
+    }
+}
+
+/* RetroAchievements page: on/off, pop-ups, sign in/out, the list. */
+static int achievements_page(App *app)
+{
+    enum { R_ENABLED, R_POPUPS, R_LOGIN, R_LIST, R_BACK, ROWS };
+    int sel = 0, stick[2] = { 0, 0 };
+    for (;;) {
+        char rows[ROWS + 2][64], st[96];
+        ach_status(st, sizeof st);
+        snprintf(rows[R_ENABLED], 64, "%-20s %s", "Achievements", app->set.achievements ? "on" : "off");
+        snprintf(rows[R_POPUPS], 64, "%-20s %s", "Pop-ups", app->set.achievement_popups ? "on" : "off");
+        snprintf(rows[R_LOGIN], 64, "%s", ach_logged_in() ? "Sign out" : "Sign in...");
+        snprintf(rows[R_LIST], 64, "Achievement list...");
+        snprintf(rows[R_BACK], 64, "Back");
+        rows[ROWS][0] = 0;
+        snprintf(rows[ROWS + 1], 64, "%.50s", st);
+        menu_draw(app, "RetroAchievements (softcore)", rows, ROWS + 2, sel,
+                  "Account: retroachievements.org   B: back");
+        SDL_Event e;
+        if (!SDL_WaitEventTimeout(&e, 100))
+            continue;
+        if (e.type == SDL_CONTROLLERDEVICEADDED)
+            add_pad(app, e.cdevice.which);
+        MenuNav nav = menu_nav(app, &e, stick);
+        switch (nav) {
+        case NAV_QUIT: return 1;
+        case NAV_UP: sel = (sel + ROWS - 1) % ROWS; break;
+        case NAV_DOWN: sel = (sel + 1) % ROWS; break;
+        case NAV_BACK: return 0;
+        case NAV_LEFT: case NAV_RIGHT: case NAV_OK:
+            if (sel == R_ENABLED) {
+                app->set.achievements = !app->set.achievements;
+                if (app->set.achievements)
+                    ach_start(data_dir(), SML_VERSION, core_machine(), app->rom, app->rom_size);
+                else
+                    ach_stop();
+            } else if (sel == R_POPUPS) {
+                app->set.achievement_popups = !app->set.achievement_popups;
+            } else if (nav != NAV_OK) {
+                break;
+            } else if (sel == R_BACK) {
+                return 0;
+            } else if (sel == R_LIST) {
+                if (achievement_list_page(app))
+                    return 1;
+            } else if (sel == R_LOGIN && ach_logged_in()) {
+                ach_logout();
+            } else if (sel == R_LOGIN) {
+                char user[64], password[128];
+                if (!app->set.achievements) {
+                    app->set.achievements = 1;
+                    ach_start(data_dir(), SML_VERSION, core_machine(), app->rom, app->rom_size);
+                }
+                int r = text_entry(app, "RetroAchievements user name", user, sizeof user, 0);
+                if (r > 0 && user[0])
+                    r = text_entry(app, "Password (only the login token is kept)", password, sizeof password, 1);
+                if (r < 0)
+                    return 1;
+                if (r > 0 && user[0])
+                    ach_login(user, password);
+                memset(password, 0, sizeof password);
+            }
+            break;
+        default: break;
+        }
+    }
+}
+
 /* The settings menu. The game stands still while it is open: no frame is
    run, so nothing here can change what the game computes. */
 static void run_menu(App *app)
@@ -1221,7 +1507,7 @@ static void run_menu(App *app)
             char v[40];
             menu_value(app, i, v, sizeof v);
             snprintf(rows[i], sizeof rows[i], "%-20s %s%s", menu_labels[i], v,
-                     i == MI_CONTROLS ? "..." : "");
+                     i == MI_CONTROLS || i == MI_ACHIEVEMENTS ? "..." : "");
         }
         menu_draw(app, "Super Mario Land " SML_VERSION, rows, MI_COUNT, sel,
                   "Up/Down: choose  Left/Right: change  B: back");
@@ -1256,6 +1542,11 @@ static void run_menu(App *app)
             else if (sel == MI_QUIT) {
                 core_quit();
                 open = 0;
+            } else if (sel == MI_ACHIEVEMENTS) {
+                if (achievements_page(app)) {
+                    core_quit();
+                    open = 0;
+                }
             } else if (sel == MI_CONTROLS) {
                 if (controls_page(app)) {
                     core_quit();
@@ -1416,11 +1707,33 @@ static void headless_picture(App *app, long frame)
 }
 
 
+/* Shows the next achievement message once the last one has been up for a while. */
+static void ach_next_popup(App *app)
+{
+    Uint32 now = SDL_GetTicks();
+    int show = app->set.achievement_popups && !app->headless;
+    if (ach_take_progress(app->ach_prog, sizeof app->ach_prog))
+        app->ach_prog_until = show && app->ach_prog[0] ? (now + 2000) | 1 : 0;
+    if (app->ach_prog_until && SDL_TICKS_PASSED(now, app->ach_prog_until))
+        app->ach_prog_until = 0;
+    /* 4 s each, but at least 1.5 s while more are waiting */
+    if (app->ach_msg_until && !SDL_TICKS_PASSED(now, app->ach_msg_until) &&
+        !(ach_messages_waiting() && SDL_TICKS_PASSED(now, app->ach_msg_shown + 1500)))
+        return;
+    app->ach_msg_until = 0;
+    if (ach_take_message(app->ach_msg, sizeof app->ach_msg) && show) {
+        app->ach_msg_shown = now;
+        app->ach_msg_until = (now + 4000) | 1;
+    }
+}
+
 static void on_frame(void *user)
 {
     App *app = user;
     app->frames++;
     widescreen_track(&app->wide_state, core_machine());
+    ach_frame();
+    ach_next_popup(app);
     if (app->set.speedrun)
         sr_on_frame(app);
     if (app->headless) {
@@ -1713,6 +2026,7 @@ static void usage(FILE *f)
             "  --category any|normal+hard  speedrun category\n"
             "  --import-lss FILE           use a LiveSplit file's PB and best segments\n"
             "  --speedrun-report           with --headless: print the timer's splits\n"
+            "  --achievements-report       print achievement unlocks (tests: SML_RA_FAKE)\n"
             "  --version                   print the version\n");
 }
 
@@ -1764,6 +2078,7 @@ int main(int argc, char **argv)
             app.sr_report = 1;
             OVERRIDE("speedrun", "timer", "yes");
         }
+        else if (!strcmp(a, "--achievements-report")) app.ach_report = 1;
         else if (!strcmp(a, "--version")) { printf("%s\n", SML_VERSION); return 0; }
         else if (!strcmp(a, "--help") || !strcmp(a, "-h")) { usage(stdout); return 0; }
         else {
@@ -1915,6 +2230,13 @@ int main(int argc, char **argv)
     }
     int closed = !app.headless && changelog_on_new_version(&app, force_changelog);
 
+    /* Headless runs never go online; tests answer from SML_RA_FAKE. */
+    const char *ra_fake = getenv("SML_RA_FAKE");
+    if (app.set.achievements && (!app.headless || (ra_fake && ra_fake[0]))) {
+        ach_set_report(app.ach_report);
+        ach_start(data_dir(), SML_VERSION, m, rom, rom_size);
+    }
+
     CoreCallbacks cb = { &app, on_frame, on_poll };
     app.start_time = now_ticks();
     if (!closed)
@@ -1949,6 +2271,7 @@ int main(int argc, char **argv)
         printf("running %d splits\n", app.sr.split);
     sr_save(&app);
     save_changes(&app);
+    ach_stop();
     for (int p = 0; p < MAX_PADS; p++)
         if (app.pads[p])
             SDL_GameControllerClose(app.pads[p]);

@@ -33,9 +33,15 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
    paused game (Esc/F1, Guide, Select+Start, Select+L1), pad navigation,
    rebinding, saved changes; widescreen up to 32:9 that fills the window or
    keeps a fixed aspect, sides decoded from the ROM's level data
-   ([docs/PLAYING.md](docs/PLAYING.md)). Open: RetroAchievements; sides of
-   the boss-gate scene and after checkpoints fill in only as columns are
-   drawn; enemies appear at the game's own screen edge.
+   ([docs/PLAYING.md](docs/PLAYING.md)). Open: sides of the boss-gate
+   scene and after checkpoints fill in only as columns are drawn; enemies
+   appear at the game's own screen edge.
+   RetroAchievements done 2026-10-16 (v0.4.0): rcheevos rc_client, sign-in
+   from the menu (keyboard or controller letter grid, token kept), the
+   official set (game 504) for the v1.1 ROM, unlock pop-ups, progress
+   indicator and an achievement list; softcore only. Open: hardcore (needs
+   RetroAchievements to accept the client), badge images, leaderboard
+   overview; the player's test with a real account.
 5. Speedrun timer and automatic level splits, practice/statistics tools and
    LiveSplit import/export. Verify current category rules before implementation;
    measure emulated cycles, including fast-forwarded tally/fake-Daisy scenes.

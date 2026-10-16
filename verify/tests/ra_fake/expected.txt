@@ -1,0 +1,5 @@
+achievements loaded game 504, 5 achievements
+achievement 9004 frame 2495 Coin Collector
+achievement 9001 frame 8310 Into World 2
+achievement 9002 frame 30190 Last World
+achievement 9003 frame 44041 Tatanga

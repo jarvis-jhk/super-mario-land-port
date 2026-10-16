@@ -3,7 +3,10 @@ CC      ?= cc
 CFLAGS  ?= -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
 BUILD   := build
 VERSION ?= M0-dev
-VERSION_FLAGS := -DSML_VERSION='"$(VERSION)"' -I$(BUILD)/gen
+# Test runs never send fault reports (verify/tests/fault_test.py checks the
+# reporter with a fake curl and clears this itself).
+export SML_NO_REPORT := 1
+VERSION_FLAGS := -DSML_VERSION='"$(VERSION)"' -I$(BUILD)/gen -Isrc/third_party/rcheevos/include
 
 HW_SRC  := src/hw/machine.c src/hw/lcd.c src/hw/apu.c
 EMU_SRC := verify/emu/sm83.c verify/emu/gb.c
@@ -107,8 +110,12 @@ $(BUILD)/windows-x86_64/sdl_hello.exe: $(HELLO)
 # The port: translated game + timing shadow + hardware model. No interpreter.
 CORE_SRC := src/core/core.c src/core/rom_id.c src/core/shadow.c src/core/rt_shadow.c $(ACCESS_TABLE) \
             $(GAME_SRC) src/util/sha1.c
+# RetroAchievements: the rcheevos client (MIT, src/third_party/rcheevos)
+RC_SRC := $(wildcard src/third_party/rcheevos/src/*.c src/third_party/rcheevos/src/rapi/*.c \
+            src/third_party/rcheevos/src/rcheevos/*.c) src/third_party/rcheevos/src/rhash/md5.c
 PORT_SRC := src/platform/fault.c src/platform/sdl_main.c src/platform/settings.c src/platform/audio_sync.c \
             src/platform/text.c src/platform/update.c src/platform/update_core.c src/platform/speedrun.c src/platform/widescreen.c \
+            src/platform/achievements.c $(RC_SRC) \
             src/util/sha256.c $(CORE_SRC) $(HW_SRC) src/util/movie.c verify/common/png.c
 # The changelog shown on the first start of a new version is built in.
 CHANGELOG_H := $(BUILD)/gen/changelog_text.h
@@ -118,7 +125,7 @@ $(CHANGELOG_H): CHANGELOG.md tools/embed_text.py
 
 $(BUILD)/sml: $(PORT_SRC) $(CHANGELOG_H) $(wildcard src/*/*.h) | $(BUILD)
 	$(CC) $(CFLAGS) $(VERSION_FLAGS) -Itools/sdl2/include -o $@ $(PORT_SRC) \
-	    -Ltools/sdl2/linux-x86_64 -lSDL2 -Wl,-rpath-link,tools/sdl2/linux-x86_64
+	    -Ltools/sdl2/linux-x86_64 -lSDL2 -lm -Wl,-rpath-link,tools/sdl2/linux-x86_64
 
 sml: $(BUILD)/sml
 
@@ -166,7 +173,9 @@ appimage-all: appimage-x86_64 appimage-aarch64
 # Frontend unit tests (settings file, audio rate control, update logic,
 # speedrun timer) and headless runs of the SDL frontend: no window, audio
 # device or settings file needed. The speedrun timer must time the
-# console-verified TAS from the 1-1 blank frame to Tatanga's disappearance.
+# console-verified TAS from the 1-1 blank frame to Tatanga's disappearance;
+# the same run unlocks the RetroAchievements test set (verify/tests/ra_fake,
+# no network) on the expected frames without changing the timing.
 FRONTEND_TEST_SRC := verify/tests/frontend_test.c src/platform/settings.c src/platform/audio_sync.c \
                      src/platform/update_core.c src/platform/speedrun.c src/util/sha256.c
 $(BUILD)/frontend_test: $(FRONTEND_TEST_SRC) src/platform/*.h src/util/sha256.h | $(BUILD)
@@ -176,8 +185,10 @@ FRONTEND_BINARY ?= $(BUILD)/sml
 check-frontend: $(BUILD)/frontend_test $(FRONTEND_BINARY) check-packaging
 	$(BUILD)/frontend_test
 	$(FRONTEND_BINARY) --rom rom/sml.gb --headless 600 | grep -qx 'frames=600 polls=[0-9]*'
-	$(FRONTEND_BINARY) --rom rom/sml.gb --model agb --movie $(BUILD)/resync11.movie --headless 44100 \
-	    --speedrun-report | tee $(BUILD)/speedrun-resync11.log | grep -qE '^split 4-3 +12:17.02 cycles=3091287748 .* finish$$'
+	SML_RA_FAKE=verify/tests/ra_fake $(FRONTEND_BINARY) --rom rom/sml.gb --model agb --movie $(BUILD)/resync11.movie \
+	    --headless 44100 --speedrun-report --achievements-report > $(BUILD)/speedrun-resync11.log
+	grep -qE '^split 4-3 +12:17.02 cycles=3091287748 .* finish$$' $(BUILD)/speedrun-resync11.log
+	grep '^achievement' $(BUILD)/speedrun-resync11.log | diff - verify/tests/ra_fake/expected.txt
 	rm -rf $(BUILD)/widescreen-check && mkdir -p $(BUILD)/widescreen-check
 	$(FRONTEND_BINARY) --rom rom/sml.gb --model agb --movie $(BUILD)/resync11.movie --headless 44100 \
 	    --widescreen 32:9 --screenshot $(BUILD)/widescreen-check/f --screenshot-every 20 | grep -qx 'frames=44100 polls=[0-9]*'

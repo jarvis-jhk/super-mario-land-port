@@ -3,6 +3,14 @@
 The game shows the new sections of this file on the first start of a new
 version. Newest first; one "## <version> - <date>" heading per release.
 
+## 0.4.0 - 2026-10-16
+
+- RetroAchievements: sign in with your retroachievements.org account in the
+  menu (RetroAchievements, Sign in...) and earn the official Super Mario Land
+  achievements. Unlocks pop up over the game, progress shows in the corner,
+  and the achievement list shows the whole set with your unlocks. Softcore
+  only; the game itself is unchanged.
+
 ## 0.3.1 - 2026-10-16
 
 - Started from the Warpzone launcher, the game uses the Super Mario Land ROM

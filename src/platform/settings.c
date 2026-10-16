@@ -146,6 +146,8 @@ void settings_defaults(Settings *s)
     s->stick = 1;
     s->deadzone = 16000;
     s->update_check = 1;
+    s->achievements = 1;
+    s->achievement_popups = 1;
     for (int a = 0; a < ACT_COUNT; a++) {
         set_binds(s->keys[a], default_keys[a], '|', err, sizeof err);
         set_binds(s->buttons[a], default_buttons[a], '|', err, sizeof err);
@@ -242,6 +244,10 @@ int settings_set(Settings *s, const char *section, const char *key, const char *
             if (c >= 0)
                 s->speedrun_category = c;
         } else goto unknown;
+    } else if (!strcmp(section, "achievements")) {
+        if (!strcmp(key, "enabled")) ok = parse_bool(value, &s->achievements);
+        else if (!strcmp(key, "popups")) ok = parse_bool(value, &s->achievement_popups);
+        else goto unknown;
     } else {
         snprintf(err, err_len, "unknown section [%s]", section);
         return -1;
@@ -388,5 +394,12 @@ int settings_save(const Settings *s, const char *path)
             "# any (Any%%) | normal+hard (Normal + Hard Mode)\n"
             "category = %s\n", s->update_check ? "yes" : "no", s->speedrun ? "yes" : "no",
             speedrun_category_name((SrCategory)s->speedrun_category));
+    fprintf(f,
+            "\n[achievements]\n"
+            "# RetroAchievements (softcore); sign in from the menu, the login token\n"
+            "# is kept in the data directory\n"
+            "enabled = %s\n"
+            "# show unlocks and progress over the game\n"
+            "popups = %s\n", s->achievements ? "yes" : "no", s->achievement_popups ? "yes" : "no");
     return fclose(f) ? -1 : 0;
 }

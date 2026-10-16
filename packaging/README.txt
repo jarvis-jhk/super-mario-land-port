@@ -51,7 +51,37 @@ F10 scaling, F11 fullscreen, F12 screenshot.
 Bindings can be changed in the menu and live in settings.ini (~/.config/super-mario-land-port/ on Linux,
 the data directory on Windows).
 
+RetroAchievements
+-----------------
+Menu > RetroAchievements > Sign in... with your retroachievements.org account
+(softcore). Unlocks pop up over the game; the achievement list shows the set.
+Only the login token is kept (retroachievements.login in the data directory).
+
 Crashes are reported anonymously (app, version and platform only; no files,
 paths or game data). SML_NO_REPORT=1 turns this off.
 
 The Windows build includes SDL2 (zlib licence, https://libsdl.org).
+
+RetroAchievements support uses rcheevos (https://github.com/RetroAchievements/rcheevos):
+
+MIT License
+
+Copyright (c) 2018 RetroAchievements.org
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

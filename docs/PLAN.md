@@ -178,6 +178,13 @@ may only change presentation, never game state.
 3. **RetroAchievements** integrated (rcheevos), with nice overviews in the
    menu. The port keeps the original memory map, so the official
    achievement set's memory conditions work unchanged.
+   **Implemented 2026-10-16 (v0.4.0, src/platform/achievements.c):** the
+   vendored rcheevos v12.5.0 client reads memory with machine_peek after
+   every frame (no side effects), talks to the server with curl in a worker
+   thread and runs callbacks on the main thread. Softcore only. `make
+   check-frontend` plays resync11 against a file-based fake server
+   (verify/tests/ra_fake) and checks the unlock frames and the unchanged
+   speedrun time.
 4. Packages: **AppImage for amd64 and arm64**, **Windows amd64** binary.
 5. **Upscaled but still pixelated** graphics (integer / sharp scaling).
 6. **Level/world editor** in game, comparable to Super Mario Maker but limited
@@ -318,7 +325,7 @@ So the port models the CPU's *timing* (not its instruction semantics):
 | 6 | Translate all code to readable C (bottom-up) | done: 205 of 205 inventoried routines in C, 230 registry entries |
 | 7 | Main loop + interrupt handlers in C; remove the interpreter; pure-C build passes all checks | done: interpreter-free core, register B tracked by the shadow; all lockstep checks pass |
 | 8 | SDL2 frontend polish (audio pacing, input config, scaling) | done for Linux: settings file, bindings, rate-controlled audio, vsync/clock pacing, scaling modes, AppImages (amd64, arm64); Windows builds but is untested |
-| 9 | Widescreen, RetroAchievements + menu, speedrun tools, level editor, Windows package | in progress: Windows package, speedrun timer, settings menu and widescreen done (v0.2.0, v0.3.0); RetroAchievements, practice tools, editor open |
+| 9 | Widescreen, RetroAchievements + menu, speedrun tools, level editor, Windows package | in progress: Windows package, speedrun timer, settings menu and widescreen done (v0.2.0, v0.3.0), RetroAchievements (v0.4.0, softcore); practice tools, editor open |
 
 ### How to verify (all must pass before a commit)
 

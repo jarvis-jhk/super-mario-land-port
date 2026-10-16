@@ -1,0 +1,86 @@
+{
+ "Success": true,
+ "GameId": 504,
+ "Title": "Super Mario Land (test set)",
+ "ConsoleId": 4,
+ "ImageIconUrl": "",
+ "RichPresenceGameId": 504,
+ "RichPresencePatch": "",
+ "Sets": [
+  {
+   "AchievementSetId": 1,
+   "GameId": 504,
+   "Title": null,
+   "Type": "core",
+   "ImageIconUrl": "",
+   "Achievements": [
+    {
+     "ID": 9001,
+     "Title": "Into World 2",
+     "Description": "Enter world 2-1",
+     "Flags": 3,
+     "Points": 5,
+     "MemAddr": "d0xHffb4!=33_0xHffb4=33",
+     "Author": "test",
+     "BadgeName": "00000",
+     "Created": 0,
+     "Modified": 0,
+     "Type": ""
+    },
+    {
+     "ID": 9002,
+     "Title": "Last World",
+     "Description": "Enter world 4-1",
+     "Flags": 3,
+     "Points": 5,
+     "MemAddr": "d0xHffb4!=65_0xHffb4=65",
+     "Author": "test",
+     "BadgeName": "00000",
+     "Created": 0,
+     "Modified": 0,
+     "Type": ""
+    },
+    {
+     "ID": 9003,
+     "Title": "Tatanga",
+     "Description": "Defeat Tatanga",
+     "Flags": 3,
+     "Points": 5,
+     "MemAddr": "d0xHd007!=96_0xHd007=96",
+     "Author": "test",
+     "BadgeName": "00000",
+     "Created": 0,
+     "Modified": 0,
+     "Type": ""
+    },
+    {
+     "ID": 9004,
+     "Title": "Coin Collector",
+     "Description": "Hold 30 coins at once",
+     "Flags": 3,
+     "Points": 5,
+     "MemAddr": "M:b0xHfffa>=30",
+     "Author": "test",
+     "BadgeName": "00000",
+     "Created": 0,
+     "Modified": 0,
+     "Type": ""
+    },
+    {
+     "ID": 9005,
+     "Title": "Never",
+     "Description": "World 9-9 does not exist",
+     "Flags": 3,
+     "Points": 5,
+     "MemAddr": "0xHffb4=153",
+     "Author": "test",
+     "BadgeName": "00000",
+     "Created": 0,
+     "Modified": 0,
+     "Type": ""
+    }
+   ],
+   "Leaderboards": []
+  }
+ ]
+}

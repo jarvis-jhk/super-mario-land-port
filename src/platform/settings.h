@@ -54,12 +54,16 @@ typedef struct {
     /* speedrun timer (speedrun.h) */
     int speedrun;               /* show the timer and keep splits */
     int speedrun_category;      /* SrCategory */
+    /* RetroAchievements (achievements.h); the login itself is kept in the
+       data directory, not here */
+    int achievements;           /* sign in and track the official set */
+    int achievement_popups;     /* show unlocks and progress over the game */
 } Settings;
 
 void settings_defaults(Settings *s);
 
 /* Parses one "key = value" assignment in a section ("video", "audio",
-   "keyboard", "controller", "update", "speedrun"). Returns 0, or -1 with a message in err. */
+   "keyboard", "controller", "update", "speedrun", "achievements"). Returns 0, or -1 with a message in err. */
 int settings_set(Settings *s, const char *section, const char *key, const char *value,
                  char *err, size_t err_len);
 

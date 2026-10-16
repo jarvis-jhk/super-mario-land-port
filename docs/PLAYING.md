@@ -77,7 +77,8 @@ Esc (or a controller's Guide button, Select+Start or Select+L1) opens the
 menu over the game, which stands still meanwhile. Up/Down choose, Left/Right
 change a value, A/Enter selects, B/Esc goes back. It has widescreen,
 scaling, palette, fullscreen, volume, sound, the speedrun timer and its
-category, automatic updates, the controls, the changelog and Quit. Under
+category, automatic updates, RetroAchievements, the controls, the changelog
+and Quit. Under
 *Controls* pick an action and press the new key or controller button for
 it (Esc or six seconds cancel); *Reset all controls* restores the defaults.
 Changes are saved in the settings file when the menu closes; options given
@@ -162,6 +163,28 @@ directory, with an up-to-date LiveSplit copy next to it
 best segments and attempt count of an existing LiveSplit file with one
 segment per level.
 
+## RetroAchievements
+
+The official RetroAchievements set for Super Mario Land works with your v1.1
+ROM: the port keeps the Game Boy's memory exactly as the original, so the
+set's conditions are checked after every frame just like in an emulator.
+Open the menu, choose *RetroAchievements*, then *Sign in...* and enter the
+user name and password of your retroachievements.org account (type them, or
+pick letters with the controller: A types, B deletes, Start finishes). Only
+the login token is kept, in `retroachievements.login` in the data directory;
+*Sign out* deletes it. Later starts sign in by themselves.
+
+Unlocks pop up at the top of the window and are sent to your account (when
+offline they are sent later); measured achievements show their progress in
+the bottom left corner. *Achievement list...* shows the whole set with your
+unlocks (`*`), points, progress and the chosen one's description. *Pop-ups*
+turns the messages off, *Achievements* turns it all off (`[achievements]`
+`enabled` / `popups` in settings.ini).
+
+Only softcore is supported (no hardcore mode); unlocks count as softcore on
+your profile. Achievements only read the game's memory, so the game, its
+timing and every TAS are unchanged with them on.
+
 ## Options for testing and TAS playback
 
     sml --model agb --movie build/resync11.movie   # console-verified TAS
@@ -172,3 +195,6 @@ segment per level.
 `--model dmg|cgb|agb` selects the console whose timing is modelled
 (DMG by default; the resync TAS was made on a Game Boy Advance). `--stats`
 prints the measured frame rate, pacing mode and audio queue on exit.
+`--achievements-report` prints each unlock with its frame; with
+`SML_RA_FAKE=verify/tests/ra_fake` the test set is served from files instead
+of the network (headless runs never go online).

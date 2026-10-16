@@ -1,5 +1,38 @@
 # Running state
 
+## RetroAchievements — 2026-10-16
+
+- Roadmap item mario-retroachievements (Opus quota session). Done when: a
+  pre-release where the player logs in to RetroAchievements in the settings
+  menu, the official set loads for the v1.1 ROM, unlocks pop up in game and
+  a menu page lists all achievements with progress, while every TAS stays
+  identical.
+- rcheevos v12.5.0 vendored in src/third_party/rcheevos (MIT; no
+  raintegration, libretro, disc/zip hashing or validator). The v1.1 ROM's
+  MD5 b259feb4... resolves to RA game 504 (checked against the server;
+  the set itself needs a login, so the official conditions were not run
+  here). src/platform/achievements.c: memory via machine_peek after every
+  frame, curl in a worker thread (request body in a 0600 temp file, never on
+  the command line), callbacks on the main thread, softcore only, token in
+  <data>/retroachievements.login. Headless runs never go online.
+- Menu: RetroAchievements page (on/off, pop-ups, sign in/out, list); sign-in
+  text entry by keyboard or controller letter grid. Pop-ups top centre
+  (4 s, 1.5 s while more wait), measured progress bottom left.
+- Tests: check-frontend now plays resync11 against verify/tests/ra_fake
+  (SML_RA_FAKE): unlock frames 2495/8310/30190/44041 must match
+  expected.txt and the speedrun time stays 12:17.02 (cycles 3091287748).
+  verify/tests/achievements_xvfb.sh: sign out/in via xdotool, list picture,
+  fast-forwarded TAS shows the "Unlocked: Coin Collector" pop-up (checked by
+  eye). Real server: a wrong login over curl gets "Invalid user/password
+  combination" shown in the menu. Overhead: none measurable headless.
+- Issue #2 (two M0-dev Linux fault reports at 11:13/11:14 UTC): developer
+  builds from a worker's test runs, not a release; the gates ran build/sml
+  without SML_NO_REPORT. The Makefile now exports SML_NO_REPORT=1 (the fault
+  test clears it itself). Closed with that note.
+- Open for Jan (not a block): sign in with his real account, unlock one
+  official achievement, check it on his RA profile; whether RA accepts the
+  "SuperMarioLandPort" user agent for softcore unlocks is only visible there.
+
 ## Warpzone found-ROM hand-over — 2026-10-16
 
 - Request t_mvb0nern42hnrt (automatic, Warpzone lane): launcher >= 0.1.2
