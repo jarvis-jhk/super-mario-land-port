@@ -21,6 +21,30 @@ in `../rom/` from the executable, and in the data directory
 `~/.local/share/super-mario-land-port/sml.gb`. `--rom FILE` overrides
 the search. Started from a desktop launcher, errors appear in a message box.
 
+## Windows, PortMaster and Steam Deck
+
+Releases (github.com/jarvis-jhk/super-mario-land-port/releases) contain a
+README.txt for every package. Windows (10 or later): unzip, put `sml.gb` next
+to `sml.exe` or in `%APPDATA%\super-mario-land-port\`, start `sml.exe`.
+PortMaster: unzip into the handheld's ports folder and put the ROM at
+`ports/supermarioland/sml.gb`; Select+Start quits. Steam Deck: in Desktop Mode
+run `install.sh [path/to/sml.gb]` from the steamdeck archive; it installs to
+`~/.local/share/super-mario-land-port/`, adds a "Super Mario Land" desktop
+entry and (after Steam is closed) a non-Steam game with artwork. Running it
+again repairs the installation and keeps the ROM, settings and Steam entry.
+
+## Updates and changelog
+
+Release builds look for a newer GitHub release in the background at start-up,
+download the file for their package next to the program, verify its size and
+SHA-256 against the release's `update.txt` and only then replace the program;
+the new version runs from the next start and a message says so. Offline
+starts, read-only installs and development builds are unaffected. Turn it off
+with `check = no` under `[update]` in settings.ini, `--no-update` or
+`SML_NO_UPDATE=1`. The first start of a new version shows its changelog
+(`--changelog` shows it again; A, Start or Enter continues). Details:
+docs/UPDATES.md.
+
 ## Controls
 
 | Game Boy | Keyboard | Controller |

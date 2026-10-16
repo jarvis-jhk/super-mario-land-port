@@ -1,5 +1,39 @@
 # Running state
 
+## Four-platform release v0.1.0 — 2026-10-16
+
+- Roadmap item mario-four-platform-release. Done when: a GitHub prerelease
+  offers Linux AppImage/tarball, Windows zip, PortMaster zip and Steam Deck
+  installer (all HTTP 200, expected size) that checksum-verify updates and
+  show the changelog on first launch of a new version. No open issues/PRs.
+- Added: built-in CHANGELOG.md screen (own 5x7 font, before the core starts),
+  background updater (GitHub release list -> update.txt -> download next to
+  the program -> size + SHA-256 -> atomic rename; opt-out [update] check = no,
+  --no-update, SML_NO_UPDATE=1), `make port-portmaster-aarch64` (system SDL2),
+  packaging/make_release.sh, PortMaster launcher, Steam Deck install.sh and an
+  own steam_shortcut.py (s25coop's is GPL-2.0; this repo has no licence, so it
+  was not copied) with original generated artwork. docs/UPDATES.md.
+- Verified here: unit tests (sha256 vectors, versions, manifest, changelog);
+  Xvfb runs with a file:// release tree: 0.0.9 -> 0.1.0 self-update of the
+  plain binary, bad checksum keeps the old binary, offline is silent,
+  read-only dir shows "Version 0.2.0 is available"; changelog screen once per
+  version (screenshot checked). Deck installer on a fake HOME/Steam profile:
+  AppImage, desktop entry, icon, ROM copy, shortcut + 5 grid images, repeat
+  install idempotent; the installed AppImage updated itself in place.
+  steam_shortcut_test covers the docs/STEAM_DECK.md VDF cases (Steam-running
+  case needs an exec-capable TMPDIR; passed with TMPDIR=build).
+- Not verifiable here (Jan's hardware tests, not blockers): Windows runtime
+  (cross-built, UCRT + SDL2.dll), PortMaster on the Knulli handheld (dynamic
+  system SDL2, gptokeyb Select+Start), Steam Deck Gaming Mode checks listed in
+  docs/STEAM_DECK.md, AppImage via FUSE on SteamOS.
+- Release binaries link the locally generated access table (never published
+  as source); see the PUBLIC_AUDIT.md "Release binaries" row.
+- Gates passed with Bash pipefail before commit: check/check-states/
+  check-models (shadow 46000 frames, 47441151 events, 0 mismatches; resync11
+  44976 identical polls AGB/CGB/DMG; ending 65477, game over 5082, pause/reset
+  706), check-frontend (incl. check-packaging) with build/linux-x86_64/sml,
+  check-fault. Evidence: build/release-gates-{core,frontend,fault}.log.
+
 ## No-ROM CI — 2026-10-16
 
 - Roadmap item mario-no-rom-ci. Done when: a green GitHub Actions run on main

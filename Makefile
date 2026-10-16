@@ -3,7 +3,7 @@ CC      ?= cc
 CFLAGS  ?= -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
 BUILD   := build
 VERSION ?= M0-dev
-VERSION_FLAGS := -DSML_VERSION='"$(VERSION)"'
+VERSION_FLAGS := -DSML_VERSION='"$(VERSION)"' -I$(BUILD)/gen
 
 HW_SRC  := src/hw/machine.c src/hw/lcd.c src/hw/apu.c
 EMU_SRC := verify/emu/sm83.c verify/emu/gb.c
@@ -107,9 +107,16 @@ $(BUILD)/windows-x86_64/sdl_hello.exe: $(HELLO)
 # The port: translated game + timing shadow + hardware model. No interpreter.
 CORE_SRC := src/core/core.c src/core/rom_id.c src/core/shadow.c src/core/rt_shadow.c $(ACCESS_TABLE) \
             $(GAME_SRC) src/util/sha1.c
-PORT_SRC := src/platform/fault.c src/platform/sdl_main.c src/platform/settings.c src/platform/audio_sync.c $(CORE_SRC) $(HW_SRC) src/util/movie.c verify/common/png.c
+PORT_SRC := src/platform/fault.c src/platform/sdl_main.c src/platform/settings.c src/platform/audio_sync.c \
+            src/platform/text.c src/platform/update.c src/platform/update_core.c src/util/sha256.c \
+            $(CORE_SRC) $(HW_SRC) src/util/movie.c verify/common/png.c
+# The changelog shown on the first start of a new version is built in.
+CHANGELOG_H := $(BUILD)/gen/changelog_text.h
+$(CHANGELOG_H): CHANGELOG.md tools/embed_text.py
+	@mkdir -p $(dir $@)
+	python3 tools/embed_text.py CHANGELOG.md changelog_text $@
 
-$(BUILD)/sml: $(PORT_SRC) $(wildcard src/*/*.h) | $(BUILD)
+$(BUILD)/sml: $(PORT_SRC) $(CHANGELOG_H) $(wildcard src/*/*.h) | $(BUILD)
 	$(CC) $(CFLAGS) $(VERSION_FLAGS) -Itools/sdl2/include -o $@ $(PORT_SRC) \
 	    -Ltools/sdl2/linux-x86_64 -lSDL2 -Wl,-rpath-link,tools/sdl2/linux-x86_64
 
@@ -121,23 +128,30 @@ sml: $(BUILD)/sml
 $(BUILD)/sdl2-%/lib/libSDL2.a:
 	tools/build_sdl2.sh $*
 
-port-linux-x86_64: $(PORT_SRC) $(BUILD)/sdl2-x86_64/lib/libSDL2.a
+port-linux-x86_64: $(PORT_SRC) $(CHANGELOG_H) $(BUILD)/sdl2-x86_64/lib/libSDL2.a
 	@mkdir -p $(BUILD)/linux-x86_64
 	$(ZIGENV) $$ZIG cc -O2 -Wall -Wextra $(VERSION_FLAGS) -target x86_64-linux-gnu.2.31 -I$(BUILD)/sdl2-x86_64/include/SDL2 \
 	    $(PORT_SRC) -o $(BUILD)/linux-x86_64/sml $(BUILD)/sdl2-x86_64/lib/libSDL2.a -lm -ldl -lpthread -lrt
 
-port-linux-aarch64: $(PORT_SRC) $(BUILD)/sdl2-aarch64/lib/libSDL2.a
+port-linux-aarch64: $(PORT_SRC) $(CHANGELOG_H) $(BUILD)/sdl2-aarch64/lib/libSDL2.a
 	@mkdir -p $(BUILD)/linux-aarch64
 	$(ZIGENV) $$ZIG cc -O2 -Wall -Wextra $(VERSION_FLAGS) -target aarch64-linux-gnu.2.31 -I$(BUILD)/sdl2-aarch64/include/SDL2 \
 	    $(PORT_SRC) -o $(BUILD)/linux-aarch64/sml $(BUILD)/sdl2-aarch64/lib/libSDL2.a -lm -ldl -lpthread -lrt
 
-port-windows-x86_64: $(PORT_SRC)
+port-windows-x86_64: $(PORT_SRC) $(CHANGELOG_H)
 	@mkdir -p $(BUILD)/windows-x86_64
 	$(ZIGENV) $(ZIGCC) $(VERSION_FLAGS) -target x86_64-windows-gnu $(PORT_SRC) -o $(BUILD)/windows-x86_64/sml.exe \
 	    tools/sdl2/mingw/x86_64-w64-mingw32/lib/libSDL2.dll.a
 	cp tools/sdl2/mingw/x86_64-w64-mingw32/bin/SDL2.dll $(BUILD)/windows-x86_64/
 
-port-all: port-linux-x86_64 port-linux-aarch64 port-windows-x86_64
+# PortMaster handhelds: the system's SDL2 (KMSDRM/Mali video, the
+# handheld's controls) is linked dynamically instead of the static X11 one.
+port-portmaster-aarch64: $(PORT_SRC) $(CHANGELOG_H)
+	@mkdir -p $(BUILD)/portmaster-aarch64
+	$(ZIGENV) $(ZIGCC) $(VERSION_FLAGS) -DSML_PORTMASTER -target aarch64-linux-gnu.2.31 $(PORT_SRC) \
+	    -o $(BUILD)/portmaster-aarch64/sml.aarch64 -Ltools/sdl2/linux-arm64 -lSDL2 -lm -Wl,--allow-shlib-undefined
+
+port-all: port-linux-x86_64 port-linux-aarch64 port-windows-x86_64 port-portmaster-aarch64
 
 # AppImages: build/dist/Super_Mario_Land_Port-<arch>.AppImage
 appimage-x86_64: port-linux-x86_64
@@ -146,20 +160,31 @@ appimage-aarch64: port-linux-aarch64
 	packaging/linux/make_appimage.sh aarch64
 appimage-all: appimage-x86_64 appimage-aarch64
 
-.PHONY: sml port-all port-linux-x86_64 port-linux-aarch64 port-windows-x86_64
+.PHONY: sml port-all port-linux-x86_64 port-linux-aarch64 port-windows-x86_64 port-portmaster-aarch64
 .PHONY: appimage-x86_64 appimage-aarch64 appimage-all
 
 # Frontend unit tests (settings file, audio rate control) and a headless run
 # of the SDL frontend: no window, audio device or settings file needed.
-$(BUILD)/frontend_test: verify/tests/frontend_test.c src/platform/settings.c src/platform/audio_sync.c src/platform/*.h | $(BUILD)
-	$(CC) $(CFLAGS) -o $@ verify/tests/frontend_test.c src/platform/settings.c src/platform/audio_sync.c -lm
+FRONTEND_TEST_SRC := verify/tests/frontend_test.c src/platform/settings.c src/platform/audio_sync.c \
+                     src/platform/update_core.c src/util/sha256.c
+$(BUILD)/frontend_test: $(FRONTEND_TEST_SRC) src/platform/*.h src/util/sha256.h | $(BUILD)
+	$(CC) $(CFLAGS) -o $@ $(FRONTEND_TEST_SRC) -lm
 
 FRONTEND_BINARY ?= $(BUILD)/sml
-check-frontend: $(BUILD)/frontend_test $(FRONTEND_BINARY)
+check-frontend: $(BUILD)/frontend_test $(FRONTEND_BINARY) check-packaging
 	$(BUILD)/frontend_test
 	$(FRONTEND_BINARY) --rom rom/sml.gb --headless 600 | grep -qx 'frames=600 polls=[0-9]*'
 
-.PHONY: check-frontend
+# Release packaging without a ROM: Steam shortcut editing on temporary
+# profiles, launcher syntax and the artwork generator.
+check-packaging:
+	python3 verify/tests/steam_shortcut_test.py
+	bash -n packaging/steamdeck/install.sh
+	bash -n "packaging/portmaster/Super Mario Land.sh"
+	bash -n packaging/make_release.sh
+	python3 packaging/steamdeck/make_artwork.py $(BUILD)/artwork-check
+
+.PHONY: check-frontend check-packaging
 
 # === function tests (verify/fntest) ========================================
 # fntest is built against a snapshot of the hardware model and CPU taken

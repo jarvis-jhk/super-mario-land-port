@@ -101,6 +101,7 @@ void settings_defaults(Settings *s)
     s->latency_ms = 64;
     s->stick = 1;
     s->deadzone = 16000;
+    s->update_check = 1;
     for (int a = 0; a < ACT_COUNT; a++) {
         set_binds(s->keys[a], default_keys[a], '|', err, sizeof err);
         set_binds(s->buttons[a], default_buttons[a], '|', err, sizeof err);
@@ -184,6 +185,9 @@ int settings_set(Settings *s, const char *section, const char *key, const char *
         else if (pad && !strcmp(key, "deadzone")) ok = parse_int(value, 0, 32767, &s->deadzone);
         else if ((i = find_name(action_names, ACT_COUNT, key)) >= 0)
             return set_binds(pad ? s->buttons[i] : s->keys[i], value, ',', err, err_len);
+        else goto unknown;
+    } else if (!strcmp(section, "update")) {
+        if (!strcmp(key, "check")) ok = parse_bool(value, &s->update_check);
         else goto unknown;
     } else {
         snprintf(err, err_len, "unknown section [%s]", section);
@@ -312,5 +316,10 @@ int settings_save(const Settings *s, const char *path)
         fprintf(f, "%s = ", action_names[a]);
         write_binds(f, s->buttons[a]);
     }
+    fprintf(f,
+            "\n[update]\n"
+            "# look for new releases at start-up and install them for the next start\n"
+            "# (checksum-verified; offline starts are not affected)\n"
+            "check = %s\n", s->update_check ? "yes" : "no");
     return fclose(f) ? -1 : 0;
 }

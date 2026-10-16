@@ -58,7 +58,10 @@ jobs:
       - name: Fault reporter tests
         run: make check-fault
 
-      - name: Port for Linux x86_64, Linux aarch64 and Windows x86_64
+      - name: Packaging tests (Steam shortcut, launchers, artwork)
+        run: make check-packaging
+
+      - name: Port for Linux x86_64/aarch64, Windows x86_64 and PortMaster aarch64
         run: make port-all $STUB VERSION=ci-${GITHUB_SHA::7}
 
       - name: The no-ROM build refuses to run the game
@@ -69,4 +72,4 @@ jobs:
           echo "$out"
           test "$status" -ne 0
           grep -q 'no-ROM CI build' <<<"$out"
-          file build/linux-aarch64/sml build/windows-x86_64/sml.exe
+          file build/linux-aarch64/sml build/windows-x86_64/sml.exe build/portmaster-aarch64/sml.aarch64

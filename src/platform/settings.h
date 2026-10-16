@@ -48,12 +48,14 @@ typedef struct {
     int stick;                  /* left stick acts as the D-pad */
     int deadzone;               /* 0..32767 */
     int fast_forward_speed;     /* 0 = unlimited, else multiple of normal speed */
+    /* updates */
+    int update_check;           /* look for and install new releases */
 } Settings;
 
 void settings_defaults(Settings *s);
 
 /* Parses one "key = value" assignment in a section ("video", "audio",
-   "keyboard", "controller"). Returns 0, or -1 with a message in err. */
+   "keyboard", "controller", "update"). Returns 0, or -1 with a message in err. */
 int settings_set(Settings *s, const char *section, const char *key, const char *value,
                  char *err, size_t err_len);
 

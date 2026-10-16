@@ -15,6 +15,18 @@ see BUILDING.md for regeneration. Runtime asset tables removed during the audit
 now read operands/data from the player's ROM, preserving timing events.
 The public anonymous fault relay uses the Actions secret only on the server.
 
+## Four-platform release (2026-10-16)
+
+packaging/make_release.sh builds pre-release assets for Linux x86_64
+(AppImage, tarball; aarch64 AppImage too), Windows x86_64, PortMaster aarch64
+(system SDL2, `make port-portmaster-aarch64`) and the Steam Deck installer
+(packaging/steamdeck/). Release builds update themselves from GitHub releases
+(src/platform/update.c, size + SHA-256 from update.txt, atomic replace, opt-out)
+and show CHANGELOG.md sections on the first start of a new version, before the
+core starts, so game state and TAS playback are untouched. docs/UPDATES.md has
+the details. Hardware checks on Windows, a PortMaster handheld and the Deck are
+the player's; see NOTES.md for what was verified here.
+
 ## No-ROM CI (2026-10-16)
 
 GitHub Actions (.github/workflows/ci.yml) builds the hardware model, tools

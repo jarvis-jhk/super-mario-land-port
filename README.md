@@ -4,10 +4,13 @@ A cycle-exact C translation that loads its graphics, levels, music and timing
 from the player's own **Super Mario Land (World) Rev A / v1.1** ROM. No ROM or
 game artwork is distributed. The production core contains no SM83 interpreter.
 
-The Linux frontend is implemented. Windows cross-builds; the four-platform M0
-release, automatic updates and in-game changelog are still being prepared.
-Planned releases cover Linux, Windows, PortMaster handhelds and Steam Deck.
+Preview releases for Linux (AppImage, tarball), Windows, PortMaster handhelds
+and the Steam Deck are on the
+[releases page](https://github.com/jarvis-jhk/super-mario-land-port/releases).
+They update themselves (checksum-verified, can be turned off) and show the
+[changelog](CHANGELOG.md) on the first start of a new version.
 
+- [Updates and changelog](docs/UPDATES.md)
 - [Playing and controls](docs/PLAYING.md)
 - [Building from source](docs/BUILDING.md)
 - [Roadmap and current priorities](ROADMAP.md)

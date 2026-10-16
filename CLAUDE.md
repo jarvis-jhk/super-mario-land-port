@@ -20,8 +20,9 @@ or worker state may enter the public tree or release assets. Secrets come from
 environment variables or GitHub Actions secrets only. Escalate takedown notices
 to the owner; do not argue them yourself.
 
-The repository remains private until the separate visibility gate approves it.
-This session must not change visibility or publish a release. Preserve old
+Workers never change repository visibility. Releases are GitHub pre-releases
+built with packaging/make_release.sh after the gates below; JARVIS dispatches
+release work through the roadmap. Preserve old
 history locally; push only the fresh main history with author AND committer
 jarvis-jhk <326430845+jarvis-jhk@users.noreply.github.com>.
 

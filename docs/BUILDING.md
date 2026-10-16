@@ -59,6 +59,8 @@ qemu/wine installed here).
     make appimage-x86_64        # build/dist/Super_Mario_Land_Port-x86_64.AppImage
     make appimage-aarch64       # build/dist/Super_Mario_Land_Port-aarch64.AppImage
     make appimage-all
+    make port-portmaster-aarch64  # build/portmaster-aarch64/sml.aarch64 (system SDL2)
+    packaging/make_release.sh 0.1.0  # every release asset, see "Releases" below
 
 The Linux release binaries link SDL2 2.30.0 statically. `tools/build_sdl2.sh
 <arch>` builds it from the source release with Zig for glibc 2.31
@@ -79,6 +81,26 @@ Verified on the dev machine (Linux Mint 22.3, X11): the x86_64 AppImage
 starts through FUSE, finds the ROM next to it, plays with sound and
 quits cleanly. The aarch64 binary and AppImage were built and checked
 with `file`/`readelf` only (no arm64 machine or qemu here).
+
+## Releases
+
+`packaging/make_release.sh <version>` builds every target with
+`VERSION=<version>` and writes `build/release/v<version>/`: both AppImages,
+the Linux x86_64 tarball, the Windows zip (with SDL2.dll), the PortMaster
+zip (`packaging/portmaster/`), the Steam Deck installer archive
+(`packaging/steamdeck/`: install.sh, steam_shortcut.py, generated original
+artwork), the raw update files (`sml-linux-x86_64`, `sml-linux-aarch64`,
+`sml-windows-x86_64.exe`, `sml-portmaster-aarch64`), `update.txt` and
+`SHA256SUMS`. CHANGELOG.md needs a `## <version> - <date>` section first; it is
+built into the game (`tools/embed_text.py`). Updates: docs/UPDATES.md.
+`make check-packaging` (part of check-frontend) tests the Steam shortcut tool on
+temporary profiles, the launchers' syntax and the artwork generator.
+
+The PortMaster binary links the handheld's own libSDL2-2.0.so.0 (its
+KMSDRM/Mali video and controller mapping) instead of the static X11 SDL2.
+
+Release binaries embed the locally generated access table, so they are built
+locally with the ROM-derived table; no ROM data or table source is published.
 
 ## ROM
 

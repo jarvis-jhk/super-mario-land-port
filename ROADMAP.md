@@ -8,23 +8,25 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
 
 ## Current priorities
 
-1. Reconcile visibility-gate approval evidence, then CI and the four-platform M0 release.
-   Preserve the cycle-exact stock game: close differential-test coverage gaps
+1. Preserve the cycle-exact stock game: close differential-test coverage gaps
    without weakening validity checks. The deterministic coverage checkpoint is
    complete: square 2 pause notes, all menu branches, first-screen widths,
    targeted branches in 15 enemy/shooter entries, and pipe/bonus transition
    contracts. Continue whole-movie coverage review for remaining script,
    collision and hardware-wait paths. All existing TAS replays must pass
    before every commit and release.
-2. Establish the first four-platform release: Linux x86_64 AppImage and tarball,
-   Windows x86_64 zip with SDL2, PortMaster aarch64 package, and Steam Deck
-   installer. Every platform needs safe checksum-verified updates, an offline
-   fallback, an update opt-out and an in-game changelog on the first launch of
-   a new version. Build without a ROM in CI; run ROM verification locally.
+2. **Four-platform release** (first pre-release v0.1.0, 2026-10-16): Linux
+   x86_64 AppImage and tarball, Windows x86_64 zip with SDL2, PortMaster
+   aarch64 package and Steam Deck installer, with checksum-verified automatic
+   updates, offline fallback, opt-out and the in-game changelog on the first
+   start of a new version ([docs/UPDATES.md](docs/UPDATES.md)). Open: the
+   player's hardware tests (Windows, PortMaster handheld, Deck); fix what they
+   report in follow-up releases.
 3. **Steam Deck desktop and Steam integration** (requested 2026-10-11): install
    a desktop launcher and a non-Steam game named **Super Mario Land**, with
-   bundled original library artwork and controller defaults. Follow s25coop's
-   proven installer behavior. [Acceptance criteria](docs/STEAM_DECK.md).
+   bundled original library artwork and controller defaults. Installer and
+   shortcut tool shipped in v0.1.0; remaining: the real-Deck checks in the
+   [acceptance criteria](docs/STEAM_DECK.md).
 4. In-game settings and controller navigation, widescreen at any aspect ratio,
    and RetroAchievements integration with achievement overviews.
 5. Speedrun timer and automatic level splits, practice/statistics tools and
@@ -71,14 +73,14 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
 
 ## Status
 
-The pure-C stock core and Linux frontend/AppImages are implemented. Windows
-cross-builds but awaits runtime verification. The release infrastructure,
-Steam Deck integration, lobby service and mod runtime are planned work;
-their presence on this roadmap does not mean a release exists yet.
+The pure-C stock core and Linux frontend/AppImages are implemented. Release
+packaging for all four platforms, safe updates, the changelog screen and the
+Steam Deck installer exist (pre-release v0.1.0); Windows, PortMaster and Deck
+runtime behaviour awaits the player's hardware tests. The lobby service and
+mod runtime are planned work.
 
 The setup audit, fresh history, roadmap and anonymous fault relay are complete.
-GitHub currently reports public visibility; this worker did not change it.
-Reconcile the external visibility-gate evidence before a release. No-ROM CI
+GitHub reports public visibility (changed outside the workers). No-ROM CI
 (2026-10-16) builds all three port targets and runs the no-ROM tests with a
 placeholder access table; those binaries cannot play, so release binaries are
 built locally with the generated table.

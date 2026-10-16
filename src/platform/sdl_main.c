@@ -20,6 +20,9 @@
  *                         possible
  *     --screenshot FILE   with --headless: save the last frame as PNG
  *     --stats             print pacing and audio statistics on exit
+ *     --no-update         do not look for new releases this time
+ *     --changelog         show the changelog before starting
+ *     --version           print the version and exit
  *
  * Settings: $XDG_CONFIG_HOME/super-mario-land-port/settings.ini on Linux
  * (~/.config/... when XDG_CONFIG_HOME is unset), settings.ini in the data
@@ -34,6 +37,11 @@
  * Esc = quit. Game controllers use SDL's controller mapping (south button
  * = A, west/east = B, right shoulder = fast forward); every binding can be
  * changed in the settings file.
+ *
+ * The first start of a new version shows what changed (CHANGELOG.md, built
+ * in). Release builds look for a newer release in the background and install
+ * it, checksum-verified, for the next start (update.c, [update] check = no
+ * turns it off).
  *
  * Everything here is presentation: pacing, scaling, audio resampling and
  * fast forward never change what the game computes, so movies and TAS
@@ -64,6 +72,14 @@
 #include "audio_sync.h"
 #include "settings.h"
 #include "fault.h"
+#include "text.h"
+#include "update.h"
+#include "update_core.h"
+#include "changelog_text.h"   /* generated from CHANGELOG.md */
+
+#ifndef SML_VERSION
+#define SML_VERSION "M0-dev"
+#endif
 
 #define APP_DIR "super-mario-land-port"
 #define GB_CLOCK 4194304.0
@@ -110,6 +126,9 @@ typedef struct {
 
     /* title messages ("scaling: sharp") */
     Uint32 title_until;
+    /* message drawn over the game (updates) */
+    char banner[160];
+    Uint32 banner_until;
 
     /* --stats */
     int stats;
@@ -447,6 +466,15 @@ static void render_frame(App *app)
             SDL_RenderCopy(app->renderer, app->texture, NULL, &dst);
         }
     }
+    if (app->banner_until) {
+        int px = SDL_max(1, oh / 240);
+        int w = (int)strlen(app->banner) * TEXT_CELL_W * px + 4 * px;
+        SDL_Rect bar = { (ow - w) / 2, oh - (TEXT_CELL_H + 6) * px, w, (TEXT_CELL_H + 2) * px };
+        SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 255);
+        SDL_RenderFillRect(app->renderer, &bar);
+        SDL_SetRenderDrawColor(app->renderer, 255, 255, 255, 255);
+        text_draw(app->renderer, bar.x + 2 * px, bar.y + 2 * px, px, app->banner);
+    }
     SDL_RenderPresent(app->renderer);
 }
 
@@ -704,6 +732,15 @@ static void handle_events(App *app)
     }
     if (app->title_until && SDL_TICKS_PASSED(SDL_GetTicks(), app->title_until))
         update_title(app, NULL);
+    const char *news = update_message();
+    if (news) {
+        snprintf(app->banner, sizeof app->banner, "%s", news);
+        app->banner_until = SDL_GetTicks() + 8000;
+        update_title(app, news);
+        app->title_until = SDL_GetTicks() + 8000;
+    }
+    if (app->banner_until && SDL_TICKS_PASSED(SDL_GetTicks(), app->banner_until))
+        app->banner_until = 0;
 }
 
 /* --- core callbacks --------------------------------------------------- */
@@ -764,6 +801,134 @@ static uint8_t on_poll(void *user)
     if (app->record_path)
         movie_append(&app->recording, b);
     return b;
+}
+
+/* --- changelog ------------------------------------------------------------ */
+
+/* Saves the window as PNG in the data directory (F12 on the changelog). */
+static void save_window_png(App *app)
+{
+    int w, h;
+    SDL_GetRendererOutputSize(app->renderer, &w, &h);
+    uint8_t *rgba = malloc((size_t)w * h * 4), *rgb = malloc((size_t)w * h * 3);
+    if (rgba && rgb && SDL_RenderReadPixels(app->renderer, NULL, SDL_PIXELFORMAT_RGBA32, rgba, w * 4) == 0) {
+        for (int i = 0; i < w * h; i++)
+            memcpy(rgb + i * 3, rgba + i * 4, 3);
+        char path[1200];
+        snprintf(path, sizeof path, "%schangelog.png", data_dir());
+        png_write_rgb(path, rgb, w, h);
+    }
+    free(rgba);
+    free(rgb);
+}
+
+/* Shows the changelog until a button is pressed; Up/Down scroll. Returns 0,
+   or -1 when the window was closed. */
+static int show_changelog(App *app, const char *text)
+{
+    static char wrapped[65536];
+    enum { COLS = 52, CANVAS_W = 320, CANVAS_H = 216 };
+    int lines = text_wrap(text, COLS, wrapped, sizeof wrapped), top = 0, redraw = 1;
+    for (;;) {
+        SDL_Event e;
+        int ow, oh;
+        SDL_GetRendererOutputSize(app->renderer, &ow, &oh);
+        int px = SDL_max(1, SDL_min(ow / CANVAS_W, oh / CANVAS_H));
+        int x0 = (ow - (COLS * TEXT_CELL_W) * px) / 2, y0 = (oh - CANVAS_H * px) / 2 + 4 * px;
+        int rows = (CANVAS_H - 4 * TEXT_CELL_H) / TEXT_CELL_H;
+        if (redraw) {
+            const uint32_t *pal = app->set.palette;
+            SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 255);
+            SDL_RenderClear(app->renderer);
+            SDL_SetRenderDrawColor(app->renderer, pal[0] >> 16 & 255, pal[0] >> 8 & 255, pal[0] & 255, 255);
+            text_draw(app->renderer, x0, y0, px, "What's new in Super Mario Land " SML_VERSION);
+            const char *line = wrapped;
+            for (int i = 0; i < top && line; i++)
+                line = strchr(line, '\n') ? strchr(line, '\n') + 1 : NULL;
+            SDL_SetRenderDrawColor(app->renderer, pal[1] >> 16 & 255, pal[1] >> 8 & 255, pal[1] & 255, 255);
+            for (int r = 0; r < rows && line && *line; r++) {
+                char buf[COLS + 8];
+                size_t len = strcspn(line, "\n");
+                snprintf(buf, sizeof buf, "%.*s", (int)SDL_min(len, sizeof buf - 1), line);
+                text_draw(app->renderer, x0, y0 + (r + 2) * TEXT_CELL_H * px, px, buf);
+                line += len + (line[len] == '\n');
+            }
+            SDL_SetRenderDrawColor(app->renderer, pal[0] >> 16 & 255, pal[0] >> 8 & 255, pal[0] & 255, 255);
+            text_draw(app->renderer, x0, y0 + (rows + 3) * TEXT_CELL_H * px, px,
+                      lines > rows ? "A / Start / Enter: play     Up / Down: scroll"
+                                   : "A / Start / Enter: play");
+            SDL_RenderPresent(app->renderer);
+            redraw = 0;
+        }
+        if (!SDL_WaitEventTimeout(&e, 100))
+            continue;
+        int step = 0, go = 0;
+        switch (e.type) {
+        case SDL_QUIT:
+            return -1;
+        case SDL_WINDOWEVENT:
+            redraw = 1;
+            break;
+        case SDL_KEYDOWN:
+            switch (e.key.keysym.sym) {
+            case SDLK_UP: step = -1; break;
+            case SDLK_DOWN: step = 1; break;
+            case SDLK_PAGEUP: step = -rows; break;
+            case SDLK_PAGEDOWN: step = rows; break;
+            case SDLK_F12: save_window_png(app); break;
+            case SDLK_RETURN: case SDLK_SPACE: case SDLK_ESCAPE: case SDLK_x: go = 1; break;
+            default: break;
+            }
+            break;
+        case SDL_CONTROLLERDEVICEADDED:
+            add_pad(app, e.cdevice.which);
+            break;
+        case SDL_CONTROLLERBUTTONDOWN:
+            switch (e.cbutton.button) {
+            case SDL_CONTROLLER_BUTTON_DPAD_UP: step = -1; break;
+            case SDL_CONTROLLER_BUTTON_DPAD_DOWN: step = 1; break;
+            case SDL_CONTROLLER_BUTTON_A: case SDL_CONTROLLER_BUTTON_B:
+            case SDL_CONTROLLER_BUTTON_START: go = 1; break;
+            default: break;
+            }
+            break;
+        }
+        if (go)
+            return 0;
+        if (step) {
+            top = SDL_max(0, SDL_min(top + step, lines - rows));
+            redraw = 1;
+        }
+    }
+}
+
+/* The first start of a new version shows its changelog sections. */
+static int changelog_on_new_version(App *app, int force)
+{
+    char path[1200], seen[64] = "";
+    snprintf(path, sizeof path, "%slast_version.txt", data_dir());
+    FILE *f = data_dir()[0] ? fopen(path, "r") : NULL;
+    if (f) {
+        if (!fgets(seen, sizeof seen, f))
+            seen[0] = 0;
+        seen[strcspn(seen, "\r\n")] = 0;
+        fclose(f);
+    }
+    int is_release = version_compare(SML_VERSION, SML_VERSION) == 0;
+    char *text = NULL;
+    if (force)
+        text = changelog_since(changelog_text, "0", is_release ? SML_VERSION : "99999");
+    else if (is_release && strcmp(seen, SML_VERSION))
+        text = changelog_since(changelog_text, seen, SML_VERSION);
+    char *shown = text ? changelog_reflow(text) : NULL;
+    int r = shown ? show_changelog(app, shown) : 0;
+    free(shown);
+    free(text);
+    if (r == 0 && is_release && strcmp(seen, SML_VERSION) && data_dir()[0] && (f = fopen(path, "w"))) {
+        fprintf(f, "%s\n", SML_VERSION);
+        fclose(f);
+    }
+    return r;
 }
 
 /* --- start-up -------------------------------------------------------------- */
@@ -834,13 +999,17 @@ static void usage(FILE *f)
             "  --record FILE               record input to a movie on exit\n"
             "  --headless N [--screenshot FILE]\n"
             "                              run N frames without window or audio\n"
-            "  --stats                     print pacing/audio statistics on exit\n");
+            "  --stats                     print pacing/audio statistics on exit\n"
+            "  --no-update                 do not look for new releases\n"
+            "  --changelog                 show the changelog first\n"
+            "  --version                   print the version\n");
 }
 
 int main(int argc, char **argv)
 {
     static App app;
     const char *rom_path = NULL, *movie_path = NULL, *config_path = NULL;
+    int no_update = 0, force_changelog = 0;
     MachineModel model = MODEL_DMG;
     /* options that override the settings file: section, key, value */
     const char *over[32][3];
@@ -872,6 +1041,9 @@ int main(int argc, char **argv)
             app.headless_frames = atol(argv[++i]);
         } else if (!strcmp(a, "--screenshot") && has) app.screenshot_path = argv[++i];
         else if (!strcmp(a, "--stats")) app.stats = 1;
+        else if (!strcmp(a, "--no-update")) no_update = 1;
+        else if (!strcmp(a, "--changelog")) force_changelog = 1;
+        else if (!strcmp(a, "--version")) { printf("%s\n", SML_VERSION); return 0; }
         else if (!strcmp(a, "--help") || !strcmp(a, "-h")) { usage(stdout); return 0; }
         else {
             fprintf(stderr, "unknown option %s\n", a);
@@ -989,9 +1161,17 @@ int main(int argc, char **argv)
         choose_pacing(&app);
     }
 
+    if (!app.headless) {
+        const char *env = getenv("SML_NO_UPDATE");
+        if (app.set.update_check && !no_update && !(env && !strcmp(env, "1")))
+            update_start(data_dir());
+    }
+    int closed = !app.headless && changelog_on_new_version(&app, force_changelog);
+
     CoreCallbacks cb = { &app, on_frame, on_poll };
     app.start_time = now_ticks();
-    core_run(model, rom, rom_size, &cb);
+    if (!closed)
+        core_run(model, rom, rom_size, &cb);
 
     if (app.stats && !app.headless) {
         double secs = (now_ticks() - app.start_time) / app.perf_freq;

@@ -33,6 +33,8 @@ The separate visibility gate must review this evidence before changing privacy.
 | .foreman/, tools/ntfy.sh | Removed. Useful queue items folded into ROADMAP.md; private notifications replaced by the public fault relay. |
 | .claude/, .auto-subagent/ in the history bundle | Inspected all 111 distinct bundle heads (all objects present): six historical .claude entries are worktree gitlinks, not source needed for this build. No tracked .auto-subagent files found; local notes only describe already integrated fixes/remaining branch coverage. Nothing must be recovered into the public tree. |
 | Local handoff, bundle and .jarvis/ | Private operational records, explicitly ignored. Old history retained only on a local branch and in the bundle. |
+| src/platform/text.c, packaging/steamdeck/make_artwork.py, packaging/linux/make_icon.py (2026-10-16) | Original 5x7 pixel font and generated original artwork (hills, coins, title in that font). No game graphics, logo or box art; generated PNGs stay in ignored build/ and release archives. Keep. |
+| Release binaries (GitHub releases, 2026-10-16) | Compiled from this tree plus the locally generated access table, which is linked in and never published as source. They contain no ROM bytes or artwork; the game loads everything from the player's ROM. |
 
 The boundary is program behavior versus content/analysis payloads: this is a C
 translation, so addresses and semantic constants necessarily describe the original
@@ -43,4 +45,5 @@ emulator/tools and frontend unit tests until runtime classification replaces tha
 build dependency; do not distribute the generated source table.
 
 This is a technical content audit, not a legal clearance or a takedown guarantee.
-The visibility gate remains external to this work. No release is authorized here.
+The visibility gate remains external to this work. Release binaries: see the
+"Release binaries" row in the table (pre-releases since 2026-10-16).

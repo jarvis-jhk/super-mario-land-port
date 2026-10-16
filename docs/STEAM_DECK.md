@@ -4,6 +4,19 @@ Requested 2026-10-11: a desktop entry and Steam integration with the proper
 name and artwork, similar to s25coop. This is a first-release acceptance gate;
 the current Linux AppImage alone does not satisfy it.
 
+## Status (2026-10-16)
+
+Implemented in packaging/steamdeck/ and shipped in the release's
+`*-steamdeck.tar.gz`: install.sh (AppImage, desktop entry, icon, optional ROM
+copy) and steam_shortcut.py, written for this port (s25coop's script is GPL
+and was not copied) with the safeguards below, tested on temporary profiles by
+`make check-packaging` (repeat install, name migration, stable app ID, spaces
+in paths, several accounts, Flatpak, malformed/truncated VDF, duplicates,
+backup, unrelated shortcuts and custom artwork). Original artwork comes from
+make_artwork.py. Updates replace the installed AppImage in place, so the
+shortcut and its app ID stay. Open: the hardware checks at the end of this
+file, by the player on a real Deck.
+
 ## Installation and launch
 
 - Ship the Linux x86_64 build with a Desktop Mode installer, no root access or
