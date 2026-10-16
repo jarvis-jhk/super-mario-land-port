@@ -28,6 +28,10 @@
   docs/STEAM_DECK.md, AppImage via FUSE on SteamOS.
 - Release binaries link the locally generated access table (never published
   as source); see the PUBLIC_AUDIT.md "Release binaries" row.
+- Published pre-release https://github.com/jarvis-jhk/super-mario-land-port/releases/tag/v0.1.0
+  (tag on 1a604c2): 12 assets, each HTTP 200 with the expected size. Live
+  check: a 0.0.9 build updated itself from this GitHub release to 0.1.0 (hash
+  equal to update.txt). Item done; follow-ups come from Jan's hardware tests.
 - Gates passed with Bash pipefail before commit: check/check-states/
   check-models (shadow 46000 frames, 47441151 events, 0 mismatches; resync11
   44976 identical polls AGB/CGB/DMG; ending 65477, game over 5082, pause/reset
