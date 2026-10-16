@@ -29,6 +29,14 @@
   window picture checked by eye. Unit tests for widescreen values/widths.
 - Open for Jan (not a block): menu with real controllers (Guide/Select+L1 on
   the Knulli handheld), widescreen on the Deck and an ultrawide screen.
+- Gates (pipefail, after make stable-hw) passed: check/check-states/
+  check-models (shadow 0 mismatches; resync11 44976, ending 65477, game over
+  5082, pause/reset 706 identical polls), check-frontend incl. widescreen
+  check 97.5 %, check-fault. Evidence: build/settings-gates-*.log.
+- Published pre-release https://github.com/jarvis-jhk/super-mario-land-port/releases/tag/v0.3.0
+  (tag on 5298021): 12 assets, each HTTP 200 with the expected size and
+  byte-identical; release binary times resync11 at 12:17.02; a downloaded
+  v0.2.0 updated itself to 0.3.0 (hash equal to update.txt). Item closed.
 
 ## Warpzone handoff — 2026-10-16
 
