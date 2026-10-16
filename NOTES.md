@@ -13,6 +13,12 @@
   (--rom {path}) and the v1.1/v1.0 fingerprints match the importer; the
   missing present path, exec and exact asset names are already in open
   warpzone PR #4 (commented there).
+- Gates (pipefail) passed again (core 0 mismatches, frontend incl.
+  widescreen, fault): build/wzdata-gates-*.log. Published pre-release
+  https://github.com/jarvis-jhk/super-mario-land-port/releases/tag/v0.3.1
+  (tag on 7af4d0c): 12 assets HTTP 200, expected sizes, byte-identical;
+  release binary times resync11 at 12:17.02; a downloaded 0.3.0 updated
+  itself to 0.3.1 (hash equal to update.txt).
 
 ## Settings & widescreen — 2026-10-16
 
