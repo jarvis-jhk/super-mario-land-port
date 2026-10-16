@@ -135,6 +135,9 @@ struct Machine {
     uint8_t framebuffer[LCD_W * LCD_H];   /* shades 0..3 */
     LcdRegs line_regs[LCD_H];  /* registers each line was drawn with (output only,
                                   for the frontend's widescreen view) */
+    int fix_top_lines;         /* presentation only (frontend): redraw the top lines a
+                                  late vertical-blank handler left with the old scroll */
+    long top_lines_fixed;      /* frames in which that happened (for tests) */
 
     /* cartridge bus: the last value that crossed it, for reads of unmapped RAM */
     uint8_t cart_bus;

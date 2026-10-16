@@ -1,5 +1,33 @@
 # Running state
 
+## Status bar top-line fix — 2026-10-16
+
+- Request t_mvbjus1m16maua (Jan): the top pixel row glitches sometimes;
+  correct it on the display. Cause: the vblank handler writes SCX = SCY = 0
+  for the status bar at its very end (after DrawColumn, DMA, score, timer);
+  when it runs long (column draws, sound timer first) the first 1-4 lines
+  are drawn with the previous frame's playfield scroll, so HUD text jumps
+  sideways. Seen in 3923 of 44100 TAS frames (lines 0-3, rarely 4; only
+  SCX/SCY differ; states 00/0D/1C/1D/22/23).
+- Fix (presentation only, frontend sets Machine.fix_top_lines): when a line
+  1-7 is drawn with SCX = SCY = 0 and every earlier line differs from it
+  only in scroll, those lines are drawn again with its registers (scratch
+  LcdState, skipped if the window is visible there); line_regs updated so
+  widescreen sides agree. Emulation state untouched; the core verifiers use
+  the stable hw snapshot anyway. `--display-report` counts redraws and
+  frames still stale; check-frontend requires 0 stale on resync11 (3922
+  redrawn). Before/after picture checked: frame 100 line 1 shifted 56 px
+  before, correct after.
+- Gates (pipefail) passed: check/check-states/check-models (shadow 0
+  mismatches; 44976/65477/5082/706 identical polls plus the uncommitted
+  bonus-ladder/pipe/time-up movies), check-frontend, check-fault.
+  Evidence: build/topline-gates-*.log.
+- Left uncommitted for the 0.5.1 work (not this request): the bonus-ladder,
+  pipe and time-up movies, regen_access_table.py random branches, Makefile
+  check-states list, BUILDING/PUBLIC_AUDIT notes and the CHANGELOG 0.5.1
+  section (now also listing this fix). Issue #3 (0.5.0 bonus-game fault)
+  is still open; Jan reported another bonus-ladder crash at 22:47 UTC.
+
 ## Level editor — 2026-10-16
 
 - Roadmap item mario-level-editor (Opus quota session). Done when: a

@@ -31,6 +31,8 @@
  *     --import-lss FILE   take over personal best and best segments of a
  *                         LiveSplit split file for the timer's category
  *     --speedrun-report   with --headless: print the timer's splits
+ *     --display-report    with --headless: count frames whose top lines were
+ *                         redrawn after a late status-bar split (and any left)
  *     --version           print the version and exit
  *
  * Settings: $XDG_CONFIG_HOME/super-mario-land-port/settings.ini on Linux
@@ -189,6 +191,8 @@ typedef struct {
 
     /* RetroAchievements */
     int ach_report;               /* --achievements-report */
+    int disp_report;              /* --display-report */
+    long top_stale;               /* frames whose top lines still differ in scroll */
     char ach_msg[120];            /* pop-up over the game */
     Uint32 ach_msg_until, ach_msg_shown;
     char ach_prog[80];            /* progress of a measured achievement */
@@ -1818,6 +1822,14 @@ static void on_frame(void *user)
 {
     App *app = user;
     app->frames++;
+    Machine *m = core_machine();
+    if (app->disp_report && m->fix_top_lines)
+        for (int y = 1; y < 8; y++)
+            if (m->line_regs[y].scx != m->line_regs[0].scx || m->line_regs[y].scy != m->line_regs[0].scy) {
+                app->top_stale++;
+                break;
+            }
+    m->fix_top_lines = 1;     /* from the next frame on */
     if (app->custom) {
         custom_on_frame(app);
         if (app->capture) {     /* only loading the graphics: no picture */
@@ -3034,6 +3046,7 @@ static void usage(FILE *f)
             "  --import-lss FILE           use a LiveSplit file's PB and best segments\n"
             "  --speedrun-report           with --headless: print the timer's splits\n"
             "  --achievements-report       print achievement unlocks (tests: SML_RA_FAKE)\n"
+            "  --display-report            with --headless: count top-line redraws\n"
             "  --editor [FILE]             open the level editor (with a level file)\n"
             "  --play-level FILE           play a custom level (Custom mode); with\n"
             "                              --headless the movie starts at the level\n"
@@ -3091,6 +3104,7 @@ int main(int argc, char **argv)
             OVERRIDE("speedrun", "timer", "yes");
         }
         else if (!strcmp(a, "--achievements-report")) app.ach_report = 1;
+        else if (!strcmp(a, "--display-report")) app.disp_report = 1;
         else if (!strcmp(a, "--editor")) {
             open_editor = 1;
             if (has && argv[i + 1][0] != '-')
@@ -3311,6 +3325,9 @@ int main(int argc, char **argv)
         mark_custom_movie(app.record_path, &app.level);
     if (app.headless)
         printf("frames=%ld polls=%ld\n", app.frames, core_poll_count());
+    if (app.disp_report)
+        printf("display: top lines redrawn in %ld frames, %ld left with an old scroll\n",
+               core_machine()->top_lines_fixed, app.top_stale);
     if (app.sr_report && app.sr.phase == SR_RUNNING)
         printf("running %d splits\n", app.sr.split);
     sr_save(&app);

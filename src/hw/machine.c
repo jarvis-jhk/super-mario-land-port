@@ -23,6 +23,7 @@ enum {
 #define NEVER (INT64_MAX / 4)
 #define LINE 456
 #define FRAME (154 * LINE)
+#define LCD_FIX_TOP_LINES 8     /* lines lcd_fix_top_lines looks at */
 
 static int is_cgb(const Machine *m) { return m->model != MODEL_DMG; }
 static int is_agb(const Machine *m) { return m->model == MODEL_AGB; }
@@ -861,6 +862,8 @@ static void lcd_disable(Machine *m)
     memset(m->framebuffer, 0, sizeof m->framebuffer);
 }
 
+static void lcd_fix_top_lines(Machine *m, const LcdRegs *r);
+
 static void lcd_render_current_line(Machine *m)
 {
     LcdRegs r = {
@@ -871,6 +874,37 @@ static void lcd_render_current_line(Machine *m)
                     m->framebuffer + m->ppu.ly * LCD_W);
     if (m->ppu.ly < LCD_H)
         m->line_regs[m->ppu.ly] = r;
+    if (m->fix_top_lines)
+        lcd_fix_top_lines(m, &r);
+}
+
+/* Presentation only: when the vertical-blank handler runs late, its
+   SCX = SCY = 0 for the status bar lands after the first line(s) were drawn
+   with the previous frame's playfield scroll, and the top of the status bar
+   flickers. Once a line near the top shows those registers, the earlier lines
+   that differ from it only in scroll are drawn again with them. */
+static void lcd_fix_top_lines(Machine *m, const LcdRegs *r)
+{
+    int ly = m->ppu.ly;
+    if (ly < 1 || ly >= LCD_FIX_TOP_LINES || r->scx || r->scy)
+        return;
+    const LcdRegs *top = &m->line_regs[0];
+    if (top->scx == 0 && top->scy == 0)
+        return;
+    for (int y = 0; y < ly; y++) {
+        const LcdRegs *s = &m->line_regs[y];
+        if (s->scx != top->scx || s->scy != top->scy || s->lcdc != r->lcdc || s->wy != r->wy ||
+            s->wx != r->wx || s->bgp != r->bgp || s->obp0 != r->obp0 || s->obp1 != r->obp1)
+            return;
+    }
+    if ((r->lcdc & LCDC_WIN_ON) && r->wy < ly)
+        return;     /* the window counter has moved on; leave it */
+    m->top_lines_fixed++;
+    for (int y = 0; y < ly; y++) {
+        LcdState scratch = { 0, 0 };
+        lcd_render_line(&scratch, r, y, m->vram, m->oam, m->framebuffer + y * LCD_W);
+        m->line_regs[y] = *r;
+    }
 }
 
 /* The OAM scan (line cycles 0..79) looks at one byte pair per cycle: entry i

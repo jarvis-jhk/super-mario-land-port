@@ -99,6 +99,12 @@ them at its own screen edge, and the status bar, the title screen, bonus
 games, underground rooms and the ending keep blank sides. Widescreen is
 presentation only: the game runs exactly as on a Game Boy.
 
+The status bar's top lines no longer flicker. On a real Game Boy the game
+sometimes resets the scroll for the status bar a little late, so the first
+one to four lines of a frame show the level's scroll and the text jumps
+sideways. The port draws those lines again with the status bar's scroll once
+the game has set it; only the picture changes, never the game.
+
 Every binding can be changed in the menu or the settings file. Palette,
 scaling and fullscreen changes made with the keys are saved there as well.
 Screenshots go to `~/.local/share/super-mario-land-port/screenshots/`

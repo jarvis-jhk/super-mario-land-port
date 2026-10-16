@@ -189,8 +189,9 @@ check-frontend: $(BUILD)/frontend_test $(FRONTEND_BINARY) check-packaging
 	$(BUILD)/frontend_test
 	$(FRONTEND_BINARY) --rom rom/sml.gb --headless 600 | grep -qx 'frames=600 polls=[0-9]*'
 	SML_RA_FAKE=verify/tests/ra_fake $(FRONTEND_BINARY) --rom rom/sml.gb --model agb --movie $(BUILD)/resync11.movie \
-	    --headless 44100 --speedrun-report --achievements-report > $(BUILD)/speedrun-resync11.log
+	    --headless 44100 --speedrun-report --achievements-report --display-report > $(BUILD)/speedrun-resync11.log
 	grep -qE '^split 4-3 +12:17.02 cycles=3091287748 .* finish$$' $(BUILD)/speedrun-resync11.log
+	grep -qE '^display: top lines redrawn in [1-9][0-9]* frames, 0 left with an old scroll$$' $(BUILD)/speedrun-resync11.log
 	grep '^achievement' $(BUILD)/speedrun-resync11.log | diff - verify/tests/ra_fake/expected.txt
 	rm -rf $(BUILD)/widescreen-check && mkdir -p $(BUILD)/widescreen-check
 	$(FRONTEND_BINARY) --rom rom/sml.gb --model agb --movie $(BUILD)/resync11.movie --headless 44100 \
