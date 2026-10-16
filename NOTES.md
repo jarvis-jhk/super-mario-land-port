@@ -1,5 +1,29 @@
 # Running state
 
+## No-ROM CI — 2026-10-16
+
+- Roadmap item mario-no-rom-ci. Done when: a green GitHub Actions run on main
+  builds the Linux x86_64/aarch64 and Windows port plus tools without any ROM
+  or generated table and passes the no-ROM tests. No open issues or PRs.
+- The access table is a run-time input of the timing shadow, not only a build
+  input, so it cannot be dropped. Added the committed placeholder
+  src/core/access_table_stub.c (size -1), selected only explicitly with
+  make ACCESS_TABLE=...; local builds still use the generated table. Stub
+  binaries print "no-ROM CI build" and exit 1 before loading a ROM or
+  installing fault reporting, so they cannot play or send reports.
+- .github/workflows/ci.yml: pinned toolchain fetch, make all, frontend unit
+  tests, check-fault, port-all with the stub, and the refusal check.
+  Simulated from a clean tracked-file export (fresh toolchain fetch); this
+  container lacks pkg-config, so the static SDL2 configure was reused from
+  build/ there; the workflow installs pkg-config. tools/build_sdl2.sh now
+  caps make -j at 10.
+- Open: CI-built *release* binaries would need the table derived on the
+  player's machine; releases are built locally with the generated table.
+- ROM gates passed with Bash pipefail (check/check-states/check-models,
+  check-frontend with the static binary, check-fault): shadow 46000 frames,
+  0 mismatches; resync11 44976 identical polls AGB/CGB/DMG; ending 65477,
+  game over 5082, pause/reset 706. Evidence: build/norom-ci-gates.log.
+
 ## Deterministic coverage checkpoint — 2026-10-14
 
 - GitHub triage found no open issues or PRs, including fault reports. The

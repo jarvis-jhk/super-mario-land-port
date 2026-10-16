@@ -9,6 +9,8 @@ HW_SRC  := src/hw/machine.c src/hw/lcd.c src/hw/apu.c
 EMU_SRC := verify/emu/sm83.c verify/emu/gb.c
 COMMON  := verify/common/png.c src/util/movie.c
 GAME_SRC := $(wildcard src/game/*.c)
+# Locally generated from the ROM; no-ROM CI passes src/core/access_table_stub.c.
+ACCESS_TABLE ?= src/core/access_table.c
 FNTEST_REG := $(wildcard verify/fntest/registry*.c)
 
 all: $(BUILD)/emurun $(BUILD)/testrom
@@ -103,7 +105,7 @@ $(BUILD)/windows-x86_64/sdl_hello.exe: $(HELLO)
 # `make port-<target>` builds release binaries with Zig for linux-x86_64,
 # linux-aarch64, windows-x86_64; `make appimage-<arch>` packs the Linux ones.
 # The port: translated game + timing shadow + hardware model. No interpreter.
-CORE_SRC := src/core/core.c src/core/rom_id.c src/core/shadow.c src/core/rt_shadow.c src/core/access_table.c \
+CORE_SRC := src/core/core.c src/core/rom_id.c src/core/shadow.c src/core/rt_shadow.c $(ACCESS_TABLE) \
             $(GAME_SRC) src/util/sha1.c
 PORT_SRC := src/platform/fault.c src/platform/sdl_main.c src/platform/settings.c src/platform/audio_sync.c $(CORE_SRC) $(HW_SRC) src/util/movie.c verify/common/png.c
 
@@ -178,7 +180,7 @@ $(STABLE)/src/hw/machine.c:
 	$(MAKE) stable-hw
 
 $(BUILD)/fntest: verify/fntest/fntest.c $(FNTEST_REG) $(GAME_SRC) $(STABLE)/src/hw/machine.c src/util/movie.c $(wildcard src/game/*.h verify/fntest/*.h) | $(BUILD)
-	$(CC) $(CFLAGS) -I$(STABLE)/src/hw -include $(STABLE)/src/hw/machine.h -include $(STABLE)/verify/emu/gb.h -o $@ verify/fntest/fntest.c $(FNTEST_REG) $(GAME_SRC) $(STABLE_SRC) src/util/movie.c src/core/access_table.c
+	$(CC) $(CFLAGS) -I$(STABLE)/src/hw -include $(STABLE)/src/hw/machine.h -include $(STABLE)/verify/emu/gb.h -o $@ verify/fntest/fntest.c $(FNTEST_REG) $(GAME_SRC) $(STABLE_SRC) src/util/movie.c $(ACCESS_TABLE)
 
 fntest: $(BUILD)/fntest
 	$(BUILD)/fntest rom/sml.gb --model agb --movie build/resync11.movie
@@ -193,7 +195,7 @@ STABLE_INC  := -I$(STABLE)/src/hw -include $(STABLE)/src/hw/machine.h -include $
 STABLE_HW   := $(STABLE)/src/hw/machine.c $(STABLE)/src/hw/lcd.c $(STABLE)/src/hw/apu.c
 PORTRUN_SRC := verify/tools/portrun.c $(CORE_SRC) src/util/movie.c
 HYBRID_SRC  := verify/tools/portrun.c verify/tools/core_hybrid.c verify/tools/hybrid.c src/core/rom_id.c \
-               src/core/shadow.c src/core/rt_shadow.c src/core/access_table.c $(GAME_SRC) $(FNTEST_REG) \
+               src/core/shadow.c src/core/rt_shadow.c $(ACCESS_TABLE) $(GAME_SRC) $(FNTEST_REG) \
                src/util/movie.c src/util/sha1.c
 
 $(BUILD)/portrun: $(PORTRUN_SRC) $(STABLE)/src/hw/machine.c $(wildcard src/*/*.h)
@@ -205,8 +207,8 @@ $(BUILD)/portrun_hybrid: $(HYBRID_SRC) $(STABLE)/src/hw/machine.c $(wildcard src
 $(BUILD)/emurun_s: verify/tools/emurun.c $(STABLE)/src/hw/machine.c verify/common/png.c src/util/movie.c
 	$(CC) $(CFLAGS) $(STABLE_INC) -o $@ verify/tools/emurun.c $(STABLE_SRC) verify/common/png.c src/util/movie.c
 
-$(BUILD)/shadowtest: verify/tools/shadowtest.c src/core/shadow.c src/core/access_table.c $(STABLE)/src/hw/machine.c
-	$(CC) $(CFLAGS) $(STABLE_INC) -o $@ verify/tools/shadowtest.c src/core/shadow.c src/core/access_table.c $(STABLE_SRC) src/util/movie.c
+$(BUILD)/shadowtest: verify/tools/shadowtest.c src/core/shadow.c $(ACCESS_TABLE) $(STABLE)/src/hw/machine.c
+	$(CC) $(CFLAGS) $(STABLE_INC) -o $@ verify/tools/shadowtest.c src/core/shadow.c $(ACCESS_TABLE) $(STABLE_SRC) src/util/movie.c
 
 # Full verification (needs build/resync11.movie): function tests, the timing
 # shadow, and lockstep of the port (pure C) and of the hybrid development core

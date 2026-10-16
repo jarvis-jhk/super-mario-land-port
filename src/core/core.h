@@ -38,6 +38,10 @@ void core_quit(void);
    tools: memory). */
 Machine *core_machine(void);
 
+/* False in no-ROM CI builds, which lack the locally generated access table
+   and cannot run the game. */
+int core_has_access_table(void);
+
 /* Number of joypad polls (= game frames) so far. */
 long core_poll_count(void);
 

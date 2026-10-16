@@ -62,6 +62,7 @@ for need in SDL_AUDIO_DRIVER_PULSEAUDIO_DYNAMIC SDL_AUDIO_DRIVER_ALSA_DYNAMIC SD
             SDL_VIDEO_OPENGL_GLX SDL_VIDEO_RENDER_OGL SDL_UDEV_DYNAMIC; do
     grep -q "#define $need " include/SDL_config.h || { echo "SDL configure did not enable $need" >&2; exit 1; }
 done
-make -s -j"$(nproc)" > "$src/make.log" 2>&1 || { tail -40 "$src/make.log"; exit 1; }
+jobs=$(nproc); [ "$jobs" -gt 10 ] && jobs=10   # at most 10 CPUs
+make -s -j"$jobs" > "$src/make.log" 2>&1 || { tail -40 "$src/make.log"; exit 1; }
 make -s install > /dev/null
 echo "built $out/lib/libSDL2.a"

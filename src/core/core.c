@@ -26,6 +26,7 @@ static long polls;
 
 Machine *core_machine(void) { return &machine; }
 long core_poll_count(void) { return polls; }
+int core_has_access_table(void) { return shadow_access_table_size >= 0; }
 
 void core_quit(void)
 {

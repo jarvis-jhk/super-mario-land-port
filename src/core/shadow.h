@@ -61,7 +61,7 @@ enum {
 };
 typedef struct { uint8_t bank; uint16_t addr; uint8_t classes; } AccessEntry;
 extern const AccessEntry shadow_access_table[];
-extern const int shadow_access_table_size;
+extern const int shadow_access_table_size;  /* < 0: no-ROM CI stub */
 
 typedef struct Shadow Shadow;
 

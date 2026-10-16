@@ -110,8 +110,16 @@ see docs/PUBLIC_AUDIT.md. Hardware-oracle font data is also local-only:
     python3 tools/regen_hwtest_glyphs.py
 
 Without a ROM/reference checkout, make all build/frontend_test builds the emulator,
-CPU-test runner and frontend unit tests. Full-core builds currently need the
-locally generated access table; removing that build dependency is M0 CI work.
+CPU-test runner and frontend unit tests. The port itself builds for every target
+without a ROM when it links the committed placeholder table:
+
+    make port-all ACCESS_TABLE=src/core/access_table_stub.c
+
+Such binaries compile and link the whole game but refuse to run it (they print
+"no-ROM CI build" and exit 1), because the timing shadow needs the generated
+classifications. GitHub Actions (.github/workflows/ci.yml) runs exactly this
+plus the frontend and fault-reporter tests on every push and pull request.
+Playable and release binaries are built locally with the generated table.
 Anonymous reporting requires curl on Linux / curl.exe on Windows and can be
 disabled with SML_NO_REPORT=1 during tests. Release builds use make VERSION=<tag> to define SML_VERSION.
 

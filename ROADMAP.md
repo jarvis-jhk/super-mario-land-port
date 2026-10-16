@@ -78,8 +78,10 @@ their presence on this roadmap does not mean a release exists yet.
 
 The setup audit, fresh history, roadmap and anonymous fault relay are complete.
 GitHub currently reports public visibility; this worker did not change it.
-Reconcile the external visibility-gate evidence before a release. Full no-ROM
-CI still needs removal of the generated access-table build dependency.
+Reconcile the external visibility-gate evidence before a release. No-ROM CI
+(2026-10-16) builds all three port targets and runs the no-ROM tests with a
+placeholder access table; those binaries cannot play, so release binaries are
+built locally with the generated table.
 
 ## Verification maintenance (former local queue)
 

@@ -1,0 +1,72 @@
+# No-ROM CI: builds the hardware model, tools and the port for every release
+# target without a ROM, and runs the tests that need none. The port links the
+# placeholder access table (src/core/access_table_stub.c), so these binaries
+# refuse to run the game; ROM verification and release builds stay local
+# (CLAUDE.md, docs/PLAN.md).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  STUB: ACCESS_TABLE=src/core/access_table_stub.c
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            tools/zig
+            tools/sdl2
+            tools/linux-headers
+          key: toolchain-${{ hashFiles('tools/fetch_toolchain.sh') }}
+
+      - name: Restore static SDL2
+        uses: actions/cache@v4
+        with:
+          path: build/sdl2-*
+          key: sdl2-static-${{ hashFiles('tools/fetch_toolchain.sh', 'tools/build_sdl2.sh') }}
+
+      - name: Host tools for the static SDL2 configure
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends pkg-config file
+
+      - name: Fetch toolchain (pinned SHA256)
+        run: tools/fetch_toolchain.sh
+
+      - name: Hardware model, reference emulator and test runner
+        run: make all
+
+      - name: Frontend unit tests
+        run: make build/frontend_test && build/frontend_test
+
+      - name: Fault reporter tests
+        run: make check-fault
+
+      - name: Port for Linux x86_64, Linux aarch64 and Windows x86_64
+        run: make port-all $STUB VERSION=ci-${GITHUB_SHA::7}
+
+      - name: The no-ROM build refuses to run the game
+        run: |
+          set +e
+          out=$(build/linux-x86_64/sml --headless 1 2>&1); status=$?
+          set -e
+          echo "$out"
+          test "$status" -ne 0
+          grep -q 'no-ROM CI build' <<<"$out"
+          file build/linux-aarch64/sml build/windows-x86_64/sml.exe

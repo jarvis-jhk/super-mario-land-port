@@ -15,12 +15,22 @@ see BUILDING.md for regeneration. Runtime asset tables removed during the audit
 now read operands/data from the player's ROM, preserving timing events.
 The public anonymous fault relay uses the Actions secret only on the server.
 
+## No-ROM CI (2026-10-16)
+
+GitHub Actions (.github/workflows/ci.yml) builds the hardware model, tools
+and the port for Linux x86_64/aarch64 and Windows without a ROM, linking the
+placeholder src/core/access_table_stub.c (selected with ACCESS_TABLE=), and
+runs the frontend and fault-reporter tests. Stub binaries refuse to run the
+game; the timing shadow needs the ROM-run classifications at run time, so
+playable/release binaries are still built locally with the generated table.
+A CI-built release would need the table derived on the player's machine.
+
 ## Coverage checkpoint (2026-10-14)
 
 The setup audit, fresh tree, roadmap and fault relay are implemented; GitHub
 now reports public visibility. This worker did not change it. The existing
 session restriction on releases remains in force; external visibility-gate
-evidence and full no-ROM CI are still release prerequisites.
+evidence remains a release prerequisite; no-ROM CI exists since 2026-10-16.
 
 `check-states` now enforces coverage, rather than only comparing whichever
 paths happen to run. Authored cases cover both square-2 pause notes and the

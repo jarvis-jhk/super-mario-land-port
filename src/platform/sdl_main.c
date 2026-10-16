@@ -892,6 +892,10 @@ int main(int argc, char **argv)
         }
     }
 
+    if (!core_has_access_table())
+        return fail(app.headless, "This is a no-ROM CI build without the locally generated "
+                    "access table; it cannot run the game. Build the port locally "
+                    "(docs/BUILDING.md).");
     size_t rom_size = 0;
     char rom_used[1100] = "";
     uint8_t *rom = find_rom(rom_path, &rom_size, rom_used, sizeof rom_used);
