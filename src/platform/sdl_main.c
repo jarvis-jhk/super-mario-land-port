@@ -18,10 +18,17 @@
  *     --record FILE       record the input to a movie when the game ends
  *     --headless N        no window/audio/settings: run N frames as fast as
  *                         possible
- *     --screenshot FILE   with --headless: save the last frame as PNG
+ *     --frames N          with a window: quit after N frames
+ *     --screenshot FILE   save the last frame as PNG (with a window: the
+ *                         whole window including the overlays)
  *     --stats             print pacing and audio statistics on exit
  *     --no-update         do not look for new releases this time
  *     --changelog         show the changelog before starting
+ *     --timer             show the speedrun timer this time
+ *     --category any|normal+hard
+ *     --import-lss FILE   take over personal best and best segments of a
+ *                         LiveSplit split file for the timer's category
+ *     --speedrun-report   with --headless: print the timer's splits
  *     --version           print the version and exit
  *
  * Settings: $XDG_CONFIG_HOME/super-mario-land-port/settings.ini on Linux
@@ -34,14 +41,22 @@
  * Default keys: arrows = D-pad, X = A, Z = B, Enter = Start, Right Shift or
  * Backspace = Select, Tab (hold) = fast forward, F9 = next palette, F10 =
  * next scaling mode, F11 or Alt+Enter = fullscreen, F12 = screenshot,
- * Esc = quit. Game controllers use SDL's controller mapping (south button
+ * F8 = speedrun timer, Esc = quit. Game controllers use SDL's controller mapping (south button
  * = A, west/east = B, right shoulder = fast forward); every binding can be
  * changed in the settings file.
+ *
+ * Started by the Warpzone launcher (WARPZONE_LAUNCHED=1), a ROM given with
+ * --rom is kept as sml.gb in the data directory, and the launcher, not the
+ * game, installs updates.
  *
  * The first start of a new version shows what changed (CHANGELOG.md, built
  * in). Release builds look for a newer release in the background and install
  * it, checksum-verified, for the next start (update.c, [update] check = no
  * turns it off).
+ *
+ * The speedrun timer (speedrun.c, [speedrun] timer = yes) splits on its own
+ * and keeps its splits as speedrun-<category>.txt and .lss (LiveSplit) in the
+ * data directory.
  *
  * Everything here is presentation: pacing, scaling, audio resampling and
  * fast forward never change what the game computes, so movies and TAS
@@ -71,6 +86,7 @@
 #include "../../verify/common/png.h"
 #include "audio_sync.h"
 #include "settings.h"
+#include "speedrun.h"
 #include "fault.h"
 #include "text.h"
 #include "update.h"
@@ -93,7 +109,7 @@ typedef struct {
     char config_path[1024];
     int config_ok;                /* file loaded without errors (safe to rewrite) */
     int dirty;                    /* scaling/palette/fullscreen changed by hotkeys */
-    int saved_scaling, saved_fullscreen;
+    int saved_scaling, saved_fullscreen, saved_speedrun;
     uint32_t saved_palette[4];
 
     SDL_Window *window;
@@ -145,7 +161,19 @@ typedef struct {
     Movie recording;
     const char *record_path;
     const char *screenshot_path;
+
+    /* speedrun timer */
+    Speedrun sr;
+    int sr_loaded;                /* sr holds this category's saved splits */
+    int sr_report;                /* --speedrun-report */
+    char sr_path[1100], sr_lss[1100];
+    char sr_msg[48];              /* last split, shown for a while */
+    int sr_msg_kind;              /* 0 neutral, 1 ahead, 2 behind, 3 gold */
+    Uint32 sr_msg_until;
 } App;
+
+static uint8_t *load_file(const char *path, size_t *size);
+static void draw_timer(App *app, int ow, int oh);
 
 static double now_ticks(void) { return (double)SDL_GetPerformanceCounter(); }
 
@@ -260,6 +288,7 @@ static void load_settings(App *app, const char *explicit_path)
     }
     app->saved_scaling = app->set.scaling;
     app->saved_fullscreen = app->set.fullscreen;
+    app->saved_speedrun = app->set.speedrun;
     memcpy(app->saved_palette, app->set.palette, sizeof app->saved_palette);
 }
 
@@ -278,6 +307,8 @@ static void save_hotkey_changes(App *app)
         s.scaling = app->set.scaling;
     if (app->set.fullscreen != app->saved_fullscreen)
         s.fullscreen = app->set.fullscreen;
+    if (app->set.speedrun != app->saved_speedrun)
+        s.speedrun = app->set.speedrun;
     if (memcmp(app->set.palette, app->saved_palette, sizeof app->saved_palette))
         memcpy(s.palette, app->set.palette, sizeof s.palette);
     if (settings_save(&s, app->config_path))
@@ -407,7 +438,8 @@ static SDL_Rect fit_rect(int ow, int oh, double scale)
     return r;
 }
 
-static void render_frame(App *app)
+/* Draws the game and the overlays without presenting them. */
+static void render_contents(App *app)
 {
     Machine *m = core_machine();
     void *pixels;
@@ -466,6 +498,8 @@ static void render_frame(App *app)
             SDL_RenderCopy(app->renderer, app->texture, NULL, &dst);
         }
     }
+    if (app->set.speedrun)
+        draw_timer(app, ow, oh);
     if (app->banner_until) {
         int px = SDL_max(1, oh / 240);
         int w = (int)strlen(app->banner) * TEXT_CELL_W * px + 4 * px;
@@ -475,6 +509,11 @@ static void render_frame(App *app)
         SDL_SetRenderDrawColor(app->renderer, 255, 255, 255, 255);
         text_draw(app->renderer, bar.x + 2 * px, bar.y + 2 * px, px, app->banner);
     }
+}
+
+static void render_frame(App *app)
+{
+    render_contents(app);
     SDL_RenderPresent(app->renderer);
 }
 
@@ -649,6 +688,154 @@ static void queue_audio(App *app)
     SDL_QueueAudio(app->audio, app->audio_out, (Uint32)(n * 4));
 }
 
+/* --- speedrun timer --------------------------------------------------------- */
+
+/* Loads the category's splits (once) from the data directory. */
+static void sr_prepare(App *app)
+{
+    SrCategory cat = (SrCategory)app->set.speedrun_category;
+    if (app->sr_loaded && app->sr.category == cat)
+        return;
+    speedrun_init(&app->sr, cat);
+    app->sr_loaded = 1;
+    if (app->headless || !data_dir()[0])
+        return;
+    char name[32];
+    snprintf(name, sizeof name, "%s", speedrun_category_name(cat));
+    for (char *c = name; *c; c++)
+        if (*c == '+')
+            *c = '-';
+    snprintf(app->sr_path, sizeof app->sr_path, "%sspeedrun-%s.txt", data_dir(), name);
+    snprintf(app->sr_lss, sizeof app->sr_lss, "%sspeedrun-%s.lss", data_dir(), name);
+    if (speedrun_load(&app->sr, app->sr_path) < 0)
+        fprintf(stderr, "speedrun: %s has unreadable lines\n", app->sr_path);
+}
+
+/* Writes the splits and their LiveSplit copy when they changed. */
+static void sr_save(App *app)
+{
+    if (!app->sr_loaded || !app->sr.dirty || !app->sr_path[0])
+        return;
+    if (speedrun_save(&app->sr, app->sr_path) || speedrun_export_lss(&app->sr, app->sr_lss))
+        fprintf(stderr, "speedrun: cannot write %s\n", app->sr_path);
+    app->sr.dirty = 0;
+}
+
+static int import_lss(App *app, const char *path)
+{
+    size_t size;
+    char err[160];
+    uint8_t *xml = load_file(path, &size);
+    if (!xml) {
+        fprintf(stderr, "cannot read %s\n", path);
+        return -1;
+    }
+    sr_prepare(app);
+    int r = speedrun_import_lss(&app->sr, (const char *)xml, err, sizeof err);
+    free(xml);
+    if (r) {
+        fprintf(stderr, "%s: %s\n", path, err);
+        return -1;
+    }
+    sr_save(app);
+    printf("imported %s into %s\n", path, app->sr_path[0] ? app->sr_path : "the timer");
+    return 0;
+}
+
+static void sr_message(App *app, int kind, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(app->sr_msg, sizeof app->sr_msg, fmt, ap);
+    va_end(ap);
+    app->sr_msg_kind = kind;
+    app->sr_msg_until = SDL_GetTicks() + 6000;
+}
+
+/* Called once per video frame: the timer only reads game memory. */
+static void sr_on_frame(App *app)
+{
+    Machine *m = core_machine();
+    Speedrun *sr = &app->sr;
+    SrFrame f;
+    speedrun_sample(&f, m->cycles, m->wram, m->hram, m->oam);
+    int done = sr->split;
+    SrEvent ev = speedrun_frame(sr, &f);
+    if (sr->phase == SR_RUNNING && app->fast_forward)
+        sr->fast_forwarded = 1;
+    char t[24], d[24] = "";
+    switch (ev) {
+    case SR_EV_START:
+        if (app->sr_report)
+            printf("start frame=%ld cycles=%llu\n", app->frames - 1, (unsigned long long)sr->start);
+        sr_message(app, 0, "%s attempt %ld", speedrun_category_title(sr->category), sr->attempts);
+        break;
+    case SR_EV_SPLIT:
+    case SR_EV_FINISH: {
+        int64_t delta;
+        int kind = 0;
+        speedrun_format(sr->times[done], 0, t, sizeof t);
+        if (speedrun_delta(sr, done, &delta)) {
+            speedrun_format(delta, 1, d, sizeof d);
+            kind = delta < 0 ? 1 : delta > 0 ? 2 : 0;
+        }
+        if (sr->gold)
+            kind = 3;
+        if (app->sr_report)
+            printf("split %-8s %s cycles=%lld frames=%.2f%s\n", speedrun_split_name(sr, done), t,
+                   (long long)sr->times[done], sr->times[done] / GB_FRAME_CYCLES,
+                   ev == SR_EV_FINISH ? " finish" : "");
+        if (ev == SR_EV_FINISH && sr->new_pb)
+            sr_message(app, 3, "%s %s PB!", speedrun_split_name(sr, done), t);
+        else
+            sr_message(app, kind, "%s %s %s", speedrun_split_name(sr, done), t, d);
+        if (ev == SR_EV_FINISH)
+            sr_save(app);
+        break;
+    }
+    case SR_EV_RESET:
+        if (app->sr_report)
+            printf("reset after %d splits\n", sr->split);
+        sr_save(app);
+        break;
+    default:
+        break;
+    }
+}
+
+/* Timer box in the bottom right corner of the window. */
+static void draw_timer(App *app, int ow, int oh)
+{
+    Speedrun *sr = &app->sr;
+    int px = SDL_max(1, oh / 240);
+    char t[24];
+    speedrun_format(speedrun_elapsed(sr), 0, t, sizeof t);
+    int show_msg = app->sr_msg_until && !SDL_TICKS_PASSED(SDL_GetTicks(), app->sr_msg_until);
+    char sub[64];
+    snprintf(sub, sizeof sub, "%s%s", show_msg ? app->sr_msg : speedrun_category_title(sr->category),
+             sr->fast_forwarded ? " FF" : "");
+    int big = 2 * px;
+    int w = SDL_max((int)strlen(t) * TEXT_CELL_W * big, (int)strlen(sub) * TEXT_CELL_W * px) + 4 * px;
+    int h = TEXT_CELL_H * big + TEXT_CELL_H * px + 4 * px;
+    SDL_Rect box = { ow - w - 2 * px, oh - h - 2 * px, w, h };
+    SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 200);
+    SDL_RenderFillRect(app->renderer, &box);
+    SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_NONE);
+    if (sr->phase == SR_FINISHED && sr->new_pb)
+        SDL_SetRenderDrawColor(app->renderer, 255, 200, 40, 255);
+    else if (sr->phase == SR_RUNNING || sr->phase == SR_FINISHED)
+        SDL_SetRenderDrawColor(app->renderer, 255, 255, 255, 255);
+    else
+        SDL_SetRenderDrawColor(app->renderer, 150, 150, 150, 255);
+    text_draw(app->renderer, box.x + w - 2 * px - (int)strlen(t) * TEXT_CELL_W * big, box.y + 2 * px, big, t);
+    static const Uint8 colours[4][3] = { { 200, 200, 200 }, { 80, 220, 80 }, { 240, 80, 60 }, { 255, 200, 40 } };
+    const Uint8 *c = colours[show_msg ? app->sr_msg_kind : 0];
+    SDL_SetRenderDrawColor(app->renderer, c[0], c[1], c[2], 255);
+    text_draw(app->renderer, box.x + w - 2 * px - (int)strlen(sub) * TEXT_CELL_W * px,
+              box.y + 2 * px + TEXT_CELL_H * big, px, sub);
+}
+
 /* --- events ---------------------------------------------------------------- */
 
 static int hotkey(App *app, Action a)
@@ -686,6 +873,15 @@ static int hotkey(App *app, Action a)
     }
     case ACT_SCREENSHOT:
         take_screenshot(app);
+        return 1;
+    case ACT_TIMER:
+        app->set.speedrun = !app->set.speedrun;
+        if (app->set.speedrun)
+            sr_prepare(app);
+        else
+            sr_save(app);
+        update_title(app, app->set.speedrun ? "speedrun timer on" : "speedrun timer off");
+        app->dirty = 1;
         return 1;
     default:
         return 0;
@@ -749,12 +945,16 @@ static void on_frame(void *user)
 {
     App *app = user;
     app->frames++;
+    if (app->set.speedrun)
+        sr_on_frame(app);
     if (app->headless) {
         core_machine()->apu.out_len = 0;
         if (app->frames >= app->headless_frames)
             core_quit();
         return;
     }
+    if (app->headless_frames && app->frames >= app->headless_frames)
+        core_quit();
     handle_events(app);
     app->held = read_buttons(app);
 
@@ -806,7 +1006,7 @@ static uint8_t on_poll(void *user)
 /* --- changelog ------------------------------------------------------------ */
 
 /* Saves the window as PNG in the data directory (F12 on the changelog). */
-static void save_window_png(App *app)
+static void save_window_png(App *app, const char *file)
 {
     int w, h;
     SDL_GetRendererOutputSize(app->renderer, &w, &h);
@@ -815,7 +1015,10 @@ static void save_window_png(App *app)
         for (int i = 0; i < w * h; i++)
             memcpy(rgb + i * 3, rgba + i * 4, 3);
         char path[1200];
-        snprintf(path, sizeof path, "%schangelog.png", data_dir());
+        if (file)
+            snprintf(path, sizeof path, "%s", file);
+        else
+            snprintf(path, sizeof path, "%schangelog.png", data_dir());
         png_write_rgb(path, rgb, w, h);
     }
     free(rgba);
@@ -875,7 +1078,7 @@ static int show_changelog(App *app, const char *text)
             case SDLK_DOWN: step = 1; break;
             case SDLK_PAGEUP: step = -rows; break;
             case SDLK_PAGEDOWN: step = rows; break;
-            case SDLK_F12: save_window_png(app); break;
+            case SDLK_F12: save_window_png(app, NULL); break;
             case SDLK_RETURN: case SDLK_SPACE: case SDLK_ESCAPE: case SDLK_x: go = 1; break;
             default: break;
             }
@@ -982,6 +1185,28 @@ static uint8_t *find_rom(const char *explicit_path, size_t *size, char *used, si
     return NULL;
 }
 
+/* The Warpzone launcher hands over the player's ROM once with --rom; keep a
+   copy as sml.gb in the data directory so later starts find it. */
+static void keep_launcher_rom(const char *rom_path, const uint8_t *rom, size_t size)
+{
+    const char *env = getenv("WARPZONE_LAUNCHED");
+    if (!rom_path || !env || strcmp(env, "1") || !data_dir()[0])
+        return;
+    char path[1100];
+    snprintf(path, sizeof path, "%ssml.gb", data_dir());
+    FILE *f = fopen(path, "rb");
+    if (f) {
+        fclose(f);
+        return;
+    }
+    f = fopen(path, "wb");
+    if (!f)
+        return;
+    int ok = fwrite(rom, 1, size, f) == size;
+    if (fclose(f) || !ok)
+        remove(path);
+}
+
 static void usage(FILE *f)
 {
     fprintf(f,
@@ -999,16 +1224,22 @@ static void usage(FILE *f)
             "  --record FILE               record input to a movie on exit\n"
             "  --headless N [--screenshot FILE]\n"
             "                              run N frames without window or audio\n"
+            "  --frames N                  quit after N frames\n"
+            "  --screenshot FILE           save the last frame (the window) as PNG\n"
             "  --stats                     print pacing/audio statistics on exit\n"
             "  --no-update                 do not look for new releases\n"
             "  --changelog                 show the changelog first\n"
+            "  --timer                     show the speedrun timer (F8 toggles)\n"
+            "  --category any|normal+hard  speedrun category\n"
+            "  --import-lss FILE           use a LiveSplit file's PB and best segments\n"
+            "  --speedrun-report           with --headless: print the timer's splits\n"
             "  --version                   print the version\n");
 }
 
 int main(int argc, char **argv)
 {
     static App app;
-    const char *rom_path = NULL, *movie_path = NULL, *config_path = NULL;
+    const char *rom_path = NULL, *movie_path = NULL, *config_path = NULL, *lss_path = NULL;
     int no_update = 0, force_changelog = 0;
     MachineModel model = MODEL_DMG;
     /* options that override the settings file: section, key, value */
@@ -1039,10 +1270,18 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--headless") && has) {
             app.headless = 1;
             app.headless_frames = atol(argv[++i]);
-        } else if (!strcmp(a, "--screenshot") && has) app.screenshot_path = argv[++i];
+        } else if (!strcmp(a, "--frames") && has) app.headless_frames = atol(argv[++i]);
+        else if (!strcmp(a, "--screenshot") && has) app.screenshot_path = argv[++i];
         else if (!strcmp(a, "--stats")) app.stats = 1;
         else if (!strcmp(a, "--no-update")) no_update = 1;
         else if (!strcmp(a, "--changelog")) force_changelog = 1;
+        else if (!strcmp(a, "--timer")) OVERRIDE("speedrun", "timer", "yes");
+        else if (!strcmp(a, "--category") && has) OVERRIDE("speedrun", "category", argv[++i]);
+        else if (!strcmp(a, "--import-lss") && has) lss_path = argv[++i];
+        else if (!strcmp(a, "--speedrun-report")) {
+            app.sr_report = 1;
+            OVERRIDE("speedrun", "timer", "yes");
+        }
         else if (!strcmp(a, "--version")) { printf("%s\n", SML_VERSION); return 0; }
         else if (!strcmp(a, "--help") || !strcmp(a, "-h")) { usage(stdout); return 0; }
         else {
@@ -1064,6 +1303,11 @@ int main(int argc, char **argv)
         }
     }
 
+    if (app.set.speedrun)
+        sr_prepare(&app);
+    if (lss_path && import_lss(&app, lss_path))
+        return 1;
+
     if (!core_has_access_table())
         return fail(app.headless, "This is a no-ROM CI build without the locally generated "
                     "access table; it cannot run the game. Build the port locally "
@@ -1083,6 +1327,7 @@ int main(int argc, char **argv)
         return fail(app.headless, "%s: %s.\n\nThis port needs Super Mario Land (World) "
                     "(Rev A / v1.1), SHA1 418203621b887caa090215d97e3f509b79affd3e.",
                     rom_used, core_rom_description(version));
+    keep_launcher_rom(rom_path, rom, rom_size);
     if (movie_path) {
         if (movie_load(&app.movie, movie_path)) {
             fprintf(stderr, "cannot load movie %s\n", movie_path);
@@ -1188,12 +1433,19 @@ int main(int argc, char **argv)
                    app.sync.last_adjust * 100);
     }
 
-    if (app.screenshot_path)
+    if (app.screenshot_path && app.headless)
         png_write_shades(app.screenshot_path, m->framebuffer, LCD_W, LCD_H, 1);
+    else if (app.screenshot_path && app.renderer) {
+        render_contents(&app);
+        save_window_png(&app, app.screenshot_path);
+    }
     if (app.record_path && movie_save(&app.recording, app.record_path))
         fprintf(stderr, "cannot write %s\n", app.record_path);
     if (app.headless)
         printf("frames=%ld polls=%ld\n", app.frames, core_poll_count());
+    if (app.sr_report && app.sr.phase == SR_RUNNING)
+        printf("running %d splits\n", app.sr.split);
+    sr_save(&app);
     save_hotkey_changes(&app);
     for (int p = 0; p < MAX_PADS; p++)
         if (app.pads[p])

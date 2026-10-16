@@ -62,6 +62,7 @@ docs/UPDATES.md.
 | next scaling mode | F10 | |
 | fullscreen | F11, Alt+Enter | |
 | screenshot | F12 | |
+| speedrun timer on/off | F8 | |
 | quit | Esc | |
 
 Every binding can be changed in the settings file. Palette, scaling and
@@ -99,11 +100,37 @@ None of these settings change the game: pacing, scaling, resampling and
 fast forward only affect presentation, so the game computes exactly what
 the cartridge computes and input movies stay in sync.
 
+## Speedrun timer
+
+F8 (or `timer = yes` under `[speedrun]`, or `--timer`) shows a timer in the
+bottom right corner. It follows the speedrun.com rules for Super Mario Land
+(real time): it starts on the frame before 1-1 first appears after Start on
+the title screen and stops on the first frame in which Tatanga's sprite has
+disappeared. It counts emulated Game Boy cycles, not wall-clock time, so the
+result equals the same run on a console and does not change with the
+display rate, window stalls or fast forward. A run that used fast forward is
+marked `FF` (a video of it would be shorter than its time).
+
+Splits are automatic, one per level, on the frame before the next level
+appears; the last one is Tatanga. Each split shows the time and the
+difference to your personal best (green ahead, red behind, gold for a new
+best segment). Returning to the title (game over, reset) ends the attempt.
+`category = normal+hard` times Normal + Hard Mode: 24 splits, the run goes on
+through the ending until Tatanga falls in the second quest.
+
+Personal best, best segments, attempt count and the last 32 finished times
+are kept in `speedrun-any.txt` (or `speedrun-normal-hard.txt`) in the data
+directory, with an up-to-date LiveSplit copy next to it
+(`speedrun-any.lss`). `sml --import-lss FILE` takes over the personal best,
+best segments and attempt count of an existing LiveSplit file with one
+segment per level.
+
 ## Options for testing and TAS playback
 
     sml --model agb --movie build/resync11.movie   # console-verified TAS
     sml --record my.movie                           # save input on exit
     sml --headless 600 --screenshot out.png         # no window, no audio
+    sml --model agb --movie build/resync11.movie --headless 44100 --speedrun-report
 
 `--model dmg|cgb|agb` selects the console whose timing is modelled
 (DMG by default; the resync TAS was made on a Game Boy Advance). `--stats`

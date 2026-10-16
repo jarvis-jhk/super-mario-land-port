@@ -1,5 +1,51 @@
 # Running state
 
+## Warpzone handoff — 2026-10-16
+
+- Request t_mvavxten267c5a (automatic, from the Warpzone lane). Added
+  ROADMAP items 6 (Warpzone integration) and 7 (16-player shared screens,
+  Jan's verbatim request); items 8/9 (editor, mods) now go through Warpzone;
+  docs/MODS.md: server-side resolution into lockfiles, offline validation.
+- Done: self-updater silent with WARPZONE_LAUNCHED=1 or .warpzone-managed in
+  the program's folder or its parent (Xvfb file:// test: plain install
+  updates, the three managed cases do not); with WARPZONE_LAUNCHED=1 a --rom
+  hand-over is copied to the data dir as sml.gb once (tested).
+- Descriptor games/super-mario-land-port.toml: [launch] has no exec (needs
+  linux/deck "*/sml", windows "*/sml.exe"); asset patterns and SHA256SUMS
+  match v0.1.0 names; import_args --rom now persists; present could list
+  ~/.local/share/super-mario-land-port/sml.gb. PR status: see below.
+
+## Speedrun timer — 2026-10-16
+
+- Roadmap item mario-speedrun-timer. Done when: a pre-release shows an
+  optional in-game speedrun timer that times Any% by the speedrun.com rule in
+  emulated frames, splits automatically per level, keeps PB/best segments and
+  exports LiveSplit .lss, verified on the TAS. No open issues/PRs at start.
+- Rules (speedrun.com API, game sml1, 2026-10-16): real time, emulators
+  allowed; Any% starts on the frame before the level and UI load in, ends on
+  the frame Tatanga's sprite disappears; Normal + Hard Mode runs both quests.
+  The "399" community proposal is not the rule.
+- Added src/platform/speedrun.c (no SDL): reads FFB3/FFB4/FF9F/D007 and OAM
+  once per video frame (read-only), times in emulated cycles; start = the
+  blank frame before 1-1 (frame 38 on resync11, checked against the frames),
+  split per level on the same rule, end = first frame without Tatanga's tiles
+  ($AC-$AF/$BC-$BF/$CB-$CF) after D007 = $60 in 4-3 (frame 44043, checked).
+  Demo/attract play is ignored; returning to the title ends an attempt.
+  PB, best segments, attempts, last 32 runs in speedrun-<cat>.txt plus an
+  .lss copy in the data dir; --import-lss; F8 / [speedrun] timer / --timer;
+  overlay bottom right with delta colours and an FF mark. --frames N and a
+  window --screenshot were added for tests.
+- Verified: frontend_test (synthetic runs, deltas, golds, resets, Normal +
+  Hard through the title demo, file and .lss round trips, LiveSplit shapes);
+  resync11 headless report 12:17.02 = 3091287748 cycles (now in
+  check-frontend); ending movie with normal+hard keeps running after the
+  ending; game-over movie resets; Xvfb window screenshot shows the overlay
+  and the 1-1 split (0:38.19). Windows and PortMaster targets compile.
+- Found, not caused by this item: the pause-reset movie followed by idle
+  input aborts in the timing shadow at the time-up (00:1D04); filed issue #1.
+- Open for Jan (not a block): playing with the timer on real setups;
+  PortMaster has no default controller bind for the timer (settings.ini).
+
 ## Deck integration — 2026-10-16
 
 - Roadmap item mario-deck-integration. Done when: a GitHub prerelease ships a

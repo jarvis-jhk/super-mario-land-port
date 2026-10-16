@@ -32,15 +32,36 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
 5. Speedrun timer and automatic level splits, practice/statistics tools and
    LiveSplit import/export. Verify current category rules before implementation;
    measure emulated cycles, including fast-forwarded tally/fake-Daisy scenes.
+   Timer done 2026-10-16 (v0.2.0): speedrun.com Any% and Normal + Hard Mode
+   timing in emulated cycles, automatic per-level splits, PB/best segments,
+   LiveSplit .lss export/import ([docs/PLAYING.md](docs/PLAYING.md)). Open:
+   practice/statistics tools, more comparisons/layouts, the fast-forward
+   option for the tally and fake-Daisy scenes.
    **TAS recorder and TAS player** (requested 2026-10-12): reach both through
    the in-game menus, with controller navigation. Record inputs, save recordings,
    select a recording and replay it deterministically; preserve cycle-exact
    stock playback and separate replay identities for custom gameplay.
-6. Level/world editor and the custom-content runtime, followed by the lobby
-   service, in-game sharing, browsing, voting and management.
-7. **Mod ecosystem** (requested 2026-10-11): typed packages with transitive
-   versioned dependencies, in-game browser/manager through the lobby server,
-   and sandboxed Lua for custom tile/player/enemy behavior.
+6. **Warpzone integration** (requested 2026-10-16): JARVIS's shared online
+   layer (https://warpzone.virtualtabletop.io, the one allowed Jan domain in
+   this repo) replaces an own lobby service. Done: the self-updater stays
+   silent in launcher installs (`.warpzone-managed`, `WARPZONE_LAUNCHED=1`)
+   and a launcher `--rom` hand-over is kept as sml.gb. Next: descriptor fixes
+   (PR to jarvis-jhk/warpzone), the C API (tiers 1-3 per its
+   docs/integration.md), leaderboards `any` (seasonal) and `1-1` fed by the
+   speedrun timer with ruleset stock vs. lockfile hash and replay hashes.
+   No chat or free-text player content.
+7. **Shared screens for up to 16 players** (requested 2026-10-16: "playable
+   cooperatively with synchronized splitscreen views (up to 16 players) each
+   playing their own game - just for some shared fun"): every player runs an
+   own stock game; a Warpzone room (preset `together`, star around the host,
+   the host relays views/inputs) shows all games side by side, synchronized.
+   Presentation only; each game stays cycle-exact.
+8. Level/world editor and the custom-content runtime, with in-game sharing,
+   browsing, voting and management through Warpzone.
+9. **Mod ecosystem** (requested 2026-10-11): typed packages with transitive
+   versioned dependencies, delivered by the Warpzone archive (server-side
+   resolution into lockfiles, offline validation, `wz_sync_mods`), and
+   sandboxed Lua for custom tile/player/enemy behavior.
    [Design and staged delivery](docs/MODS.md).
 
 ## Rules for every release
@@ -76,8 +97,9 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
 The pure-C stock core and Linux frontend/AppImages are implemented. Release
 packaging for all four platforms, safe updates, the changelog screen and the
 Steam Deck installer exist (pre-release v0.1.0); Windows, PortMaster and Deck
-runtime behaviour awaits the player's hardware tests. The lobby service and
-mod runtime are planned work.
+runtime behaviour awaits the player's hardware tests. The speedrun timer
+ships in v0.2.0. Warpzone online features, shared screens and the mod
+runtime are planned work.
 
 The setup audit, fresh history, roadmap and anonymous fault relay are complete.
 GitHub reports public visibility (changed outside the workers). No-ROM CI

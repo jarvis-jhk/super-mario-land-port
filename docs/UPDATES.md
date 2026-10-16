@@ -14,7 +14,9 @@ Besides the packages it carries one update file per package and `update.txt`:
 | PortMaster | `ports/supermarioland/sml.aarch64` | `sml-portmaster-aarch64` |
 
 At start-up (not headless, not with `[update] check = no`, `--no-update` or
-`SML_NO_UPDATE=1`, never in development builds), `src/platform/update.c` starts
+`SML_NO_UPDATE=1`, never in development builds, and not in installs of the
+Warpzone launcher, which updates them itself: `WARPZONE_LAUNCHED=1`, or a
+`.warpzone-managed` file next to the program or one folder above it), `src/platform/update.c` starts
 a background thread that runs curl (Windows 10+ ships `curl.exe`):
 
 1. the release list from the GitHub API; the highest `v<version>` tag wins

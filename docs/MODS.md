@@ -3,6 +3,17 @@
 Requested 2026-10-11. This is the implementation contract for the roadmap,
 not a claim that mods or the lobby service are implemented.
 
+**Warpzone (2026-10-16).** Catalog, moderation, voting and delivery are
+provided by Warpzone, JARVIS's shared online layer
+(https://warpzone.virtualtabletop.io, github.com/jarvis-jhk/warpzone), not by
+an own lobby service. Its moderated archive (every version approved by the
+owner) resolves dependencies **on the server** into lockfiles; the game syncs
+them with `wz_sync_mods` and only **validates** a lockfile offline (hashes,
+engine API, conflicts, one version per ID) before loading in lockfile order.
+The local resolver described below shrinks to that validator plus offline
+profile switching. The categories in this file are declared in the Warpzone
+descriptor; Lua packages set `contains_code = true`.
+
 ## Modes and package types
 
 The stock game remains the cycle-exact runtime. Presentation packages replace
@@ -57,7 +68,8 @@ visible selection. Never choose a winner from archive/download order.
 
 ## In-game browser and management
 
-The lobby service belongs to this project. Start with HTTPS catalog/search,
+Warpzone provides the catalog and downloads (see the top of this file); the
+in-game browser is a client of it. Start with HTTPS catalog/search,
 package details, compatibility/dependency metadata and immutable downloads.
 Keep the network/catalog adapter separate from the local resolver and runtime;
 installed packages and profiles must work offline.

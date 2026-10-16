@@ -150,6 +150,38 @@ static int replace_file(const char *fresh, const char *target)
 #endif
 }
 
+/* Installs of the Warpzone launcher are updated by the launcher; the game
+   stays silent there. The launcher marks its install directory with
+   .warpzone-managed (the program may sit in a versioned folder below it)
+   and sets WARPZONE_LAUNCHED=1. */
+static int launcher_managed(const char *target)
+{
+    const char *env = getenv("WARPZONE_LAUNCHED");
+    if (env && !strcmp(env, "1"))
+        return 1;
+    char dir[1100];
+    snprintf(dir, sizeof dir, "%s", target);
+    for (int up = 0; up < 2; up++) {
+        char *slash = strrchr(dir, '/');
+#ifdef _WIN32
+        char *back = strrchr(dir, '\\');
+        if (!slash || (back && back > slash))
+            slash = back;
+#endif
+        if (!slash)
+            return 0;
+        *slash = 0;
+        char marker[1200];
+        snprintf(marker, sizeof marker, "%s/.warpzone-managed", dir);
+        FILE *f = fopen(marker, "rb");
+        if (f) {
+            fclose(f);
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void say(const char *fmt, const char *version)
 {
     snprintf(message, sizeof message, fmt, version);
@@ -163,7 +195,7 @@ static int SDLCALL check(void *unused)
     char url[1200], list[1100], manifest_path[1100], target[1000], fresh[1100];
     snprintf(list, sizeof list, "%supdate-releases.json", dir);
     snprintf(manifest_path, sizeof manifest_path, "%supdate.txt", dir);
-    if (target_path(target, sizeof target))
+    if (target_path(target, sizeof target) || launcher_managed(target))
         return 0;
     snprintf(fresh, sizeof fresh, "%s.new", target);
     remove(fresh);

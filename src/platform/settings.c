@@ -1,5 +1,6 @@
 /* Frontend settings file, see settings.h. */
 #include "settings.h"
+#include "speedrun.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -8,7 +9,7 @@
 
 static const char *const action_names[ACT_COUNT] = {
     "a", "b", "select", "start", "right", "left", "up", "down",
-    "fast_forward", "fullscreen", "scaling", "palette", "screenshot", "quit",
+    "fast_forward", "fullscreen", "scaling", "palette", "screenshot", "quit", "timer",
 };
 
 static const char *const scaling_names[SCALE_MODES] = { "integer", "sharp", "nearest" };
@@ -23,11 +24,11 @@ static const struct { const char *name; uint32_t c[4]; } palettes[PALETTE_PRESET
 /* Default bindings: "|" separates alternatives. */
 static const char *const default_keys[ACT_COUNT] = {
     "X", "Z", "Right Shift|Backspace", "Return", "Right", "Left", "Up", "Down",
-    "Tab", "F11", "F10", "F9", "F12", "Escape",
+    "Tab", "F11", "F10", "F9", "F12", "Escape", "F8",
 };
 static const char *const default_buttons[ACT_COUNT] = {
     "a", "b|x", "back", "start", "dpright", "dpleft", "dpup", "dpdown",
-    "rightshoulder", "", "", "", "", "",
+    "rightshoulder", "", "", "", "", "", "",
 };
 
 const char *settings_action_name(Action a) { return a < ACT_COUNT ? action_names[a] : "?"; }
@@ -189,6 +190,14 @@ int settings_set(Settings *s, const char *section, const char *key, const char *
     } else if (!strcmp(section, "update")) {
         if (!strcmp(key, "check")) ok = parse_bool(value, &s->update_check);
         else goto unknown;
+    } else if (!strcmp(section, "speedrun")) {
+        if (!strcmp(key, "timer")) ok = parse_bool(value, &s->speedrun);
+        else if (!strcmp(key, "category")) {
+            int c = speedrun_category_from_name(value);
+            ok = c < 0 ? -1 : 0;
+            if (c >= 0)
+                s->speedrun_category = c;
+        } else goto unknown;
     } else {
         snprintf(err, err_len, "unknown section [%s]", section);
         return -1;
@@ -320,6 +329,13 @@ int settings_save(const Settings *s, const char *path)
             "\n[update]\n"
             "# look for new releases at start-up and install them for the next start\n"
             "# (checksum-verified; offline starts are not affected)\n"
-            "check = %s\n", s->update_check ? "yes" : "no");
+            "check = %s\n\n"
+            "[speedrun]\n"
+            "# speedrun timer with automatic level splits (timer hotkey toggles it);\n"
+            "# splits are kept and exported for LiveSplit in the data directory\n"
+            "timer = %s\n"
+            "# any (Any%%) | normal+hard (Normal + Hard Mode)\n"
+            "category = %s\n", s->update_check ? "yes" : "no", s->speedrun ? "yes" : "no",
+            speedrun_category_name((SrCategory)s->speedrun_category));
     return fclose(f) ? -1 : 0;
 }

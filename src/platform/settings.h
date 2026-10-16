@@ -17,7 +17,7 @@
 typedef enum {
     ACT_A, ACT_B, ACT_SELECT, ACT_START, ACT_RIGHT, ACT_LEFT, ACT_UP, ACT_DOWN,
     ACT_FAST_FORWARD, ACT_FULLSCREEN, ACT_SCALING, ACT_PALETTE, ACT_SCREENSHOT,
-    ACT_QUIT,
+    ACT_QUIT, ACT_TIMER,
     ACT_COUNT
 } Action;
 #define ACT_GAME_BUTTONS 8
@@ -50,12 +50,15 @@ typedef struct {
     int fast_forward_speed;     /* 0 = unlimited, else multiple of normal speed */
     /* updates */
     int update_check;           /* look for and install new releases */
+    /* speedrun timer (speedrun.h) */
+    int speedrun;               /* show the timer and keep splits */
+    int speedrun_category;      /* SrCategory */
 } Settings;
 
 void settings_defaults(Settings *s);
 
 /* Parses one "key = value" assignment in a section ("video", "audio",
-   "keyboard", "controller", "update"). Returns 0, or -1 with a message in err. */
+   "keyboard", "controller", "update", "speedrun"). Returns 0, or -1 with a message in err. */
 int settings_set(Settings *s, const char *section, const char *key, const char *value,
                  char *err, size_t err_len);
 

@@ -44,7 +44,8 @@ Controls
 D-pad: arrow keys / D-pad / left stick   A: X / south button
 B: Z / west or east button               Start: Enter / Start
 Select: Right Shift, Backspace / Back     Fast forward: Tab / right shoulder
-F9 palette, F10 scaling, F11 fullscreen, F12 screenshot, Esc quit.
+F8 speedrun timer, F9 palette, F10 scaling, F11 fullscreen, F12 screenshot,
+Esc quit. Speedrun timer: [speedrun] timer = yes in settings.ini.
 Bindings live in settings.ini (~/.config/super-mario-land-port/ on Linux,
 the data directory on Windows).
 

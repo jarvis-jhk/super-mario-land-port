@@ -181,6 +181,17 @@ may only change presentation, never game state.
    untouched.
 8. **Speedrunning statistics and tools** (timer/splits, per-level stats,
    practice helpers; details to be designed with the user).
+   **Implemented 2026-10-16 (v0.2.0, src/platform/speedrun.c):** the
+   speedrun.com rules (API, checked 2026-10-16) are real time, Any% and
+   Normal + Hard Mode: start on the frame before the level and UI load in
+   (the blank frame before 1-1), end on the frame Tatanga's sprite
+   disappears; the community "399" proposal is not the rule. The timer
+   counts emulated cycles between those frames (resync11: 12:17.02,
+   3091287748 cycles), splits per level on the same rule, keeps PB, best
+   segments, attempts and history, and exports/imports LiveSplit `.lss`.
+   Open from the list below: comparisons beyond PB (average, sum of best
+   display), layout options, practice tools, per-level statistics and the
+   fast-forwarded tally/fake-Daisy option.
    Requirements for the built-in timer (added 2026-10-11):
    * **Compatible with current speedrun categories.** Timing must match the
      rules of the existing leaderboards (speedrun.com categories, their

@@ -1,7 +1,8 @@
 /*
  * Unit tests for the frontend modules without SDL: the settings file
  * (src/platform/settings.c), audio rate control (audio_sync.c), and the
- * update logic (update_core.c, util/sha256.c).
+ * update logic (update_core.c, util/sha256.c) and the speedrun timer
+ * (speedrun.c).
  *
  *   build/frontend_test      exit 0 when everything passes
  */
@@ -12,6 +13,7 @@
 
 #include "../../src/platform/audio_sync.h"
 #include "../../src/platform/settings.h"
+#include "../../src/platform/speedrun.h"
 #include "../../src/platform/update_core.h"
 #include "../../src/util/sha256.h"
 
@@ -57,6 +59,8 @@ static void test_defaults_round_trip(void)
     a.deadzone = 9000;
     a.fast_forward_speed = 4;
     a.update_check = 0;
+    a.speedrun = 1;
+    a.speedrun_category = SR_NORMAL_HARD;
     memset(a.keys[ACT_QUIT], 0, sizeof a.keys[ACT_QUIT]);
     snprintf(a.keys[ACT_START][1], BIND_NAME, "Keypad Enter");
     const char *path = tmp_path("sml_frontend_test.ini");
@@ -232,12 +236,171 @@ static void test_resample(void)
     CHECK(v[0] == 500 && v[1] == -500 && v[2] == 16383 && v[3] == -16384);
 }
 
+/* One frame of a synthetic game for the timer; each frame is 70224 cycles. */
+static SrEvent sr_step(Speedrun *sr, uint64_t *cycles, int state, int wl, int boss, int tatanga)
+{
+    SrFrame f = { 0 };
+    *cycles += 70224;
+    f.cycles = *cycles;
+    f.state = (uint8_t)state;
+    f.world_level = (uint8_t)wl;
+    f.boss_defeated = (uint8_t)boss;
+    f.tatanga_visible = (uint8_t)tatanga;
+    return speedrun_frame(sr, &f);
+}
+
+/* Plays all twelve levels; level n takes 100 + n + extra frames. */
+static SrEvent sr_play(Speedrun *sr, uint64_t *c, int extra)
+{
+    static const int wl[12] = { 0x11, 0x12, 0x13, 0x21, 0x22, 0x23, 0x31, 0x32, 0x33, 0x41, 0x42, 0x43 };
+    SrEvent last = SR_EV_NONE;
+    for (int n = 0; n < 12; n++) {
+        if (n) {
+            sr_step(sr, c, 0x08, wl[n], 0, 0);            /* loading, LCD off */
+            CHECK(sr_step(sr, c, n == 11 ? 0x0D : 0x00, wl[n], 0, 0) == SR_EV_SPLIT);
+        }
+        for (int i = 1; i < 100 + n + extra; i++)
+            sr_step(sr, c, 0x00, wl[n], 0, n == 11);
+    }
+    sr_step(sr, c, 0x0D, 0x43, 0x60, 1);                  /* killed, still visible */
+    last = sr_step(sr, c, 0x07, 0x43, 0x60, 0);
+    CHECK(sr_step(sr, c, 0x06, 0x43, 0x60, 0) == SR_EV_NONE);
+    return last;
+}
+
+static void test_speedrun(void)
+{
+    Speedrun sr;
+    uint64_t c = 0;
+    char t[24];
+    speedrun_init(&sr, SR_ANY);
+    CHECK(sr.nsplits == 12 && !strcmp(speedrun_split_name(&sr, 11), "4-3"));
+
+    /* the attract demo never starts a run, nor does gameplay before a menu */
+    CHECK(sr_step(&sr, &c, 0x00, 0x11, 0, 0) == SR_EV_NONE);
+    sr_step(&sr, &c, 0x0F, 0x11, 0, 0);
+    SrFrame demo = { c + 70224, 0x00, 0x11, 0x40, 0, 0 };
+    c += 70224;
+    CHECK(speedrun_frame(&sr, &demo) == SR_EV_NONE && sr.phase == SR_ARMED);
+
+    /* start: the frame before 1-1 first appears */
+    sr_step(&sr, &c, 0x0F, 0x11, 0, 0);
+    sr_step(&sr, &c, 0x11, 0x11, 0, 0);
+    uint64_t blank = c + 70224;
+    sr_step(&sr, &c, 0x02, 0x11, 0, 0);
+    CHECK(sr_step(&sr, &c, 0x00, 0x11, 0, 0) == SR_EV_START);
+    CHECK(sr.start == blank && sr.attempts == 1);
+    /* deaths restart a level without a split */
+    sr_step(&sr, &c, 0x01, 0x11, 0, 0);
+    CHECK(sr_step(&sr, &c, 0x00, 0x11, 0, 0) == SR_EV_NONE);
+    c -= 2 * 70224;                                         /* keep the arithmetic simple */
+    sr.prev_cycles = c;
+    CHECK(sr_play(&sr, &c, 0) == SR_EV_FINISH);
+    CHECK(sr.phase == SR_FINISHED && sr.new_pb && sr.completed == 1);
+    /* 1-1 lasts 100 frames from the blank frame: 99 more plus the next blank */
+    CHECK(sr.times[0] == 101 * 70224);
+    int64_t first = sr.times[11];
+    CHECK(sr.history[0] == first && sr.pb[11] == first);
+    CHECK(speedrun_sum_of_best(&sr) == first);
+
+    /* a slower attempt: behind, no new PB; a reset keeps golds */
+    sr_step(&sr, &c, 0x0E, 0x43, 0, 0);
+    sr_step(&sr, &c, 0x0F, 0x11, 0, 0);
+    CHECK(sr_step(&sr, &c, 0x00, 0x11, 0, 0) == SR_EV_START);
+    CHECK(sr_play(&sr, &c, 1) == SR_EV_FINISH);
+    int64_t d;
+    CHECK(!sr.new_pb && speedrun_delta(&sr, 11, &d) && d > 0 && !sr.gold);
+    CHECK(sr.pb[11] == first && sr.history[1] == first && sr.completed == 2);
+    sr_step(&sr, &c, 0x0F, 0x11, 0, 0);
+    CHECK(sr_step(&sr, &c, 0x00, 0x11, 0, 0) == SR_EV_START);
+    for (int i = 0; i < 50; i++)
+        sr_step(&sr, &c, 0x00, 0x11, 0, 0);
+    sr_step(&sr, &c, 0x08, 0x12, 0, 0);
+    CHECK(sr_step(&sr, &c, 0x00, 0x12, 0, 0) == SR_EV_SPLIT && sr.gold);
+    CHECK(speedrun_delta(&sr, 0, &d) && d < 0);
+    CHECK(sr_step(&sr, &c, 0x39, 0x12, 0, 0) == SR_EV_NONE);   /* game over screen */
+    CHECK(sr_step(&sr, &c, 0x0E, 0x12, 0, 0) == SR_EV_RESET && sr.attempts == 3);
+    CHECK(sr.best[0] == 52 * 70224 && sr.pb[0] == 101 * 70224);
+
+    /* own file and LiveSplit round trips */
+    const char *path = tmp_path("sml_speedrun_test.txt");
+    Speedrun b;
+    CHECK(speedrun_save(&sr, path) == 0);
+    speedrun_init(&b, SR_ANY);
+    CHECK(speedrun_load(&b, path) == 0);
+    CHECK(!memcmp(b.pb, sr.pb, sizeof b.pb) && !memcmp(b.best, sr.best, sizeof b.best));
+    CHECK(!memcmp(b.history, sr.history, sizeof b.history) && b.attempts == 3 && b.completed == 2);
+    speedrun_init(&b, SR_NORMAL_HARD);
+    CHECK(speedrun_load(&b, path) == -1);                      /* other category */
+
+    const char *lss = tmp_path("sml_speedrun_test.lss");
+    CHECK(speedrun_export_lss(&sr, lss) == 0);
+    FILE *f = fopen(lss, "rb");
+    static char xml[65536];
+    size_t n = fread(xml, 1, sizeof xml - 1, f);
+    fclose(f);
+    xml[n] = 0;
+    CHECK(strstr(xml, "<CategoryName>Any%</CategoryName>") && strstr(xml, "<AttemptCount>3</AttemptCount>"));
+    CHECK(strstr(xml, "<Name>4-3</Name>") && strstr(xml, "<Attempt id=\"2\">"));
+    speedrun_init(&b, SR_ANY);
+    char err[200];
+    CHECK(speedrun_import_lss(&b, xml, err, sizeof err) == 0 && b.attempts == 3);
+    for (int i = 0; i < 12; i++) {
+        /* 100 ns ticks lose at most one cycle */
+        CHECK(llabs(b.pb[i] - sr.pb[i]) <= 1 && llabs(b.best[i] - sr.best[i]) <= 1);
+    }
+    speedrun_init(&b, SR_NORMAL_HARD);
+    CHECK(speedrun_import_lss(&b, xml, err, sizeof err) == -1 && strstr(err, "24 splits"));
+
+    /* LiveSplit's own shapes: short times, empty splits */
+    speedrun_init(&b, SR_ANY);
+    char small[4096] = "<Run><AttemptCount>7</AttemptCount><Segments>";
+    for (int i = 0; i < 12; i++)
+        strcat(small, i == 3 ? "<Segment><Name>x</Name><SplitTimes><SplitTime name=\"Personal Best\" />"
+                               "</SplitTimes><BestSegmentTime /></Segment>"
+                             : "<Segment><Name>x</Name><SplitTimes><SplitTime name=\"Personal Best\">"
+                               "<RealTime>00:01:02.5000000</RealTime></SplitTime></SplitTimes>"
+                               "<BestSegmentTime><RealTime>1.00:00:01</RealTime></BestSegmentTime></Segment>");
+    strcat(small, "</Segments></Run>");
+    CHECK(speedrun_import_lss(&b, small, err, sizeof err) == 0 && b.attempts == 7);
+    CHECK(b.pb[0] == 62 * 4194304LL + 2097152 && b.pb[3] == -1 && b.best[3] == -1);
+    CHECK(b.best[0] == 86401 * 4194304LL);
+    remove(path);
+    remove(lss);
+
+    /* Normal + Hard: the ending, the title and its demo keep the run going */
+    speedrun_init(&sr, SR_NORMAL_HARD);
+    c = 0;
+    sr_step(&sr, &c, 0x0F, 0x11, 0, 0);
+    CHECK(sr_step(&sr, &c, 0x00, 0x11, 0, 0) == SR_EV_START);
+    CHECK(sr_play(&sr, &c, 0) == SR_EV_SPLIT && sr.phase == SR_RUNNING && sr.split == 12);
+    sr_step(&sr, &c, 0x38, 0x11, 0x60, 0);
+    sr_step(&sr, &c, 0x0E, 0x11, 0x60, 0);
+    SrFrame title_demo = { c + 70224, 0x00, 0x11, 0x40, 0, 0 };
+    c += 70224;
+    CHECK(speedrun_frame(&sr, &title_demo) == SR_EV_NONE);
+    CHECK(sr_step(&sr, &c, 0x0F, 0x11, 0, 0) == SR_EV_NONE);
+    CHECK(sr_step(&sr, &c, 0x00, 0x11, 0, 0) == SR_EV_NONE && sr.split == 12);
+    CHECK(sr_play(&sr, &c, 0) == SR_EV_FINISH && sr.split == 24);
+    CHECK(!strcmp(speedrun_split_name(&sr, 23), "Hard 4-3"));
+
+    speedrun_format(3091287748LL, 0, t, sizeof t);
+    CHECK(!strcmp(t, "12:17.02"));
+    speedrun_format(-2223000, 1, t, sizeof t);
+    CHECK(!strcmp(t, "-0.53"));
+    speedrun_format(4194304LL * 61, 1, t, sizeof t);
+    CHECK(!strcmp(t, "+1:01.00"));
+    speedrun_format(4194304LL * 3600, 0, t, sizeof t);
+    CHECK(!strcmp(t, "1:00:00.00"));
+}
+
 int main(void)
 {
     test_defaults_round_trip();
     test_parse();
     test_resample();
     test_update();
+    test_speedrun();
     if (failures) {
         fprintf(stderr, "frontend_test: %d failure(s)\n", failures);
         return 1;
