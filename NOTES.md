@@ -32,6 +32,15 @@
 - Open for Jan (not a block): sign in with his real account, unlock one
   official achievement, check it on his RA profile; whether RA accepts the
   "SuperMarioLandPort" user agent for softcore unlocks is only visible there.
+- Gates (pipefail) passed: check/check-states/check-models (shadow 0
+  mismatches; resync11 44976, ending 65477, game over 5082, pause/reset 706
+  identical polls), check-frontend incl. achievements and widescreen 97.5 %,
+  check-fault. Evidence: build/ach-gates-*.log.
+- Published pre-release https://github.com/jarvis-jhk/super-mario-land-port/releases/tag/v0.4.0
+  (tag on 3540356): 12 assets HTTP 200, expected sizes, byte-identical;
+  release binary times resync11 at 12:17.02 with the test set unlocking on
+  the expected frames; a downloaded 0.3.1 updated itself to 0.4.0 (hash
+  equal to update.txt). Item closed.
 
 ## Warpzone found-ROM hand-over — 2026-10-16
 
