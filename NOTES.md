@@ -1,5 +1,19 @@
 # Running state
 
+## Deck integration — 2026-10-16
+
+- Roadmap item mario-deck-integration. Done when: a GitHub prerelease ships a
+  Steam Deck package whose installer adds a desktop entry and a non-Steam game
+  "Super Mario Land" with original artwork, verified on a test Steam profile.
+  No open issues/PRs.
+- Already met by v0.1.0: downloaded super-mario-land-port-0.1.0-steamdeck.tar.gz
+  (HTTP 200, 1198405 bytes) and ran its install.sh on a fake HOME with one
+  Steam account: AppImage, desktop entry, icon, shortcut "Super Mario Land"
+  (quoted exe, start dir, --fullscreen) and all five grid images. No code change.
+  Item closed; the Gaming Mode checks in docs/STEAM_DECK.md are Jan's open
+  hardware test, fixes follow his reports. Gates passed (pipefail):
+  build/deck-int-{core,frontend,fault}.log.
+
 ## Four-platform release v0.1.0 — 2026-10-16
 
 - Roadmap item mario-four-platform-release. Done when: a GitHub prerelease

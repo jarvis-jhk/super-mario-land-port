@@ -24,9 +24,9 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
    report in follow-up releases.
 3. **Steam Deck desktop and Steam integration** (requested 2026-10-11): install
    a desktop launcher and a non-Steam game named **Super Mario Land**, with
-   bundled original library artwork and controller defaults. Installer and
-   shortcut tool shipped in v0.1.0; remaining: the real-Deck checks in the
-   [acceptance criteria](docs/STEAM_DECK.md).
+   bundled original library artwork and controller defaults. Done
+   2026-10-16: installer and shortcut tool ship in v0.1.0; open: the player's
+   real-Deck checks in the [acceptance criteria](docs/STEAM_DECK.md).
 4. In-game settings and controller navigation, widescreen at any aspect ratio,
    and RetroAchievements integration with achievement overviews.
 5. Speedrun timer and automatic level splits, practice/statistics tools and
