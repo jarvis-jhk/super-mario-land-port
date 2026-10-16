@@ -77,8 +77,8 @@ Esc (or a controller's Guide button, Select+Start or Select+L1) opens the
 menu over the game, which stands still meanwhile. Up/Down choose, Left/Right
 change a value, A/Enter selects, B/Esc goes back. It has widescreen,
 scaling, palette, fullscreen, volume, sound, the speedrun timer and its
-category, automatic updates, RetroAchievements, the controls, the changelog
-and Quit. Under
+category, automatic updates, RetroAchievements, the controls, the changelog,
+the level editor and Quit. Under
 *Controls* pick an action and press the new key or controller button for
 it (Esc or six seconds cancel); *Reset all controls* restores the defaults.
 Changes are saved in the settings file when the menu closes; options given
@@ -184,6 +184,16 @@ turns the messages off, *Achievements* turns it all off (`[achievements]`
 Only softcore is supported (no hardcore mode); unlocks count as softcore on
 your profile. Achievements only read the game's memory, so the game, its
 timing and every TAS are unchanged with them on.
+
+## Level editor
+
+*Level editor* in the menu (or `sml --editor`) opens the editor: build a
+level from one world's tiles, enemies and item blocks, save it, and play it
+at once. Custom levels run in a separate Custom mode on a copy of your ROM
+in memory; the stock game, its TAS playback, the speedrun timer and
+achievements are untouched by them. Controls, the file format and the
+limits are in [LEVELS.md](LEVELS.md). `sml --play-level FILE` plays a level
+file directly.
 
 ## Options for testing and TAS playback
 

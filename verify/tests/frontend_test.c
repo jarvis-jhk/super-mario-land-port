@@ -1,8 +1,9 @@
 /*
  * Unit tests for the frontend modules without SDL: the settings file
  * (src/platform/settings.c), audio rate control (audio_sync.c), and the
- * update logic (update_core.c, util/sha256.c) and the speedrun timer
- * (speedrun.c).
+ * update logic (update_core.c, util/sha256.c), the speedrun timer
+ * (speedrun.c) and custom levels (custom_level.c, on a blank 64 KiB image
+ * instead of the ROM).
  *
  *   build/frontend_test      exit 0 when everything passes
  */
@@ -12,6 +13,7 @@
 #include <string.h>
 
 #include "../../src/platform/audio_sync.h"
+#include "../../src/platform/custom_level.h"
 #include "../../src/platform/settings.h"
 #include "../../src/platform/speedrun.h"
 #include "../../src/platform/update_core.h"
@@ -424,6 +426,87 @@ static void test_speedrun(void)
     CHECK(!strcmp(t, "1:00:00.00"));
 }
 
+
+/* Custom levels: the text format, and the level written into a ROM image
+   and read back the way the game reads it. */
+static void test_custom_level(void)
+{
+    static CustomLevel l, back;
+    static uint8_t rom[0x10000], out[0x10000];
+    char err[200], id1[65], id2[65];
+    cl_new(&l, 2, 3, 0x7F);
+    CHECK(l.cols == 60 && l.world == 2 && l.tiles[14][0] == 0x7F && l.tiles[13][59] == CL_BLANK);
+    snprintf(l.name, sizeof l.name, "Test level");
+    for (int c = 0; c < l.cols; c++)
+        l.tiles[c % 12][c] = (uint8_t)(0x60 + c % 7);     /* screens differ */
+    l.tiles[9][10] = CL_ITEM_BLOCK;
+    l.items[10] = 0x2C;
+    for (int r = 2; r < 9; r++)
+        l.tiles[r][33] = 0x82;                          /* a column worth a repeat */
+    CHECK(cl_place_enemy(&l, 30, 12, 0x84) == 0 && l.enemies[0].id == 0x04);
+    CHECK(cl_place_enemy(&l, 27, 3, 0x10) == 0);
+    CHECK(cl_place_enemy(&l, CL_FIRST_ENEMY_COL - 1, 12, 0) == -1);
+    CHECK(cl_place_enemy(&l, 60, 12, 0) == -1);
+    CHECK(cl_enemy_at(&l, 27, 3) == 1);
+
+    /* text round trip; the identity ignores the enemies' order */
+    char *text = cl_format(&l);
+    CHECK(text && cl_parse(&back, text, err, sizeof err) == 0);
+    CHECK(!strcmp(back.name, "Test level") && back.cols == 60 && back.world == 2);
+    CHECK(!memcmp(back.tiles, l.tiles, sizeof l.tiles) && !memcmp(back.items, l.items, sizeof l.items));
+    CHECK(back.n_enemies == 2 && back.enemies[0].col == 27 && back.enemies[1].id == 0x04);
+    cl_identity(&l, id1);
+    cl_identity(&back, id2);
+    CHECK(!strcmp(id1, id2) && strlen(id1) == 64);
+    const char *path = tmp_path("sml_level_test.level.txt");
+    CHECK(cl_save(&l, path, err, sizeof err) == 0);
+    CHECK(cl_load(&back, path, err, sizeof err) == 0 && !memcmp(back.tiles, l.tiles, sizeof l.tiles));
+    remove(path);
+    free(text);
+
+    /* bad files */
+    CHECK(cl_parse(&back, "hello\n", err, sizeof err) == -1);
+    CHECK(cl_parse(&back, "SML-LEVEL 1\nworld 5\ncolumns 40\n", err, sizeof err) == -1);
+    CHECK(cl_parse(&back, "SML-LEVEL 1\ncolumns 30\n", err, sizeof err) == -1);
+    CHECK(cl_parse(&back, "SML-LEVEL 1\ncolumns 40\nrow 0 2C\n", err, sizeof err) == -1);
+    CHECK(cl_parse(&back, "SML-LEVEL 1\ncolumns 40\nenemy 3 12 00\n", err, sizeof err) == -1);
+    CHECK(cl_parse(&back, "SML-LEVEL 1\ncolumns 40\nitem 3 99\n", err, sizeof err) == -1);
+    CHECK(cl_parse(&back, "SML-LEVEL 1\n# a comment\ncolumns 40\nitem 3 28\n", err, sizeof err) == 0);
+
+    /* into a (blank) ROM image and back, in every world */
+    for (int w = 1; w <= 4; w++) {
+        l.world = w;
+        CHECK(cl_build_rom(&l, rom, sizeof rom, out, err, sizeof err) == 0);
+        CHECK(cl_read_rom(out, sizeof out, w, &back) == 0);
+        CHECK(back.cols == l.cols && !memcmp(back.tiles, l.tiles, sizeof l.tiles));
+        CHECK(!memcmp(back.items, l.items, sizeof l.items));
+        CHECK(back.n_enemies == 2 && back.enemies[0].col == 27 && back.enemies[0].row == 3 &&
+              back.enemies[0].id == 0x10 && back.enemies[1].col == 30 && back.enemies[1].row == 12);
+    }
+    CHECK(cl_build_rom(&l, rom, 0x8000, out, err, sizeof err) == -1);
+
+    /* item blocks are never inside a repeat command (the game checks them one by one) */
+    cl_new(&l, 1, 2, 0x61);
+    for (int r = 0; r < 10; r++)
+        l.tiles[r][5] = CL_ITEM_BLOCK;
+    CHECK(cl_build_rom(&l, rom, sizeof rom, out, err, sizeof err) == 0);
+    int repeats = 0;
+    for (size_t i = 0; i + 1 < sizeof out; i++)
+        repeats += out[i] == 0xFD && out[i + 1] == CL_ITEM_BLOCK;
+    CHECK(repeats == 0);
+
+    /* identical screens are stored once; a level that does not fit is refused */
+    cl_new(&l, 1, CL_MAX_SCREENS, 0x61);
+    CHECK(cl_build_rom(&l, rom, sizeof rom, out, err, sizeof err) == 0);
+    for (int c = 0; c < l.cols; c++)
+        for (int r = 0; r < 14; r++)
+            l.tiles[r][c] = (uint8_t)(0x60 + (r * 7 + c * 3) % 31);
+    CHECK(cl_build_rom(&l, rom, sizeof rom, out, err, sizeof err) == -1 && strstr(err, "too big"));
+    CHECK(!memcmp(out, rom, sizeof rom));
+    cl_resize(&l, 1, 0x61);
+    CHECK(l.cols == CL_MIN_SCREENS * CL_SCREEN_COLS);
+}
+
 int main(void)
 {
     test_defaults_round_trip();
@@ -432,6 +515,7 @@ int main(void)
     test_resample();
     test_update();
     test_speedrun();
+    test_custom_level();
     if (failures) {
         fprintf(stderr, "frontend_test: %d failure(s)\n", failures);
         return 1;

@@ -71,6 +71,14 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
    Presentation only; each game stays cycle-exact.
 8. Level/world editor and the custom-content runtime, with in-game sharing,
    browsing, voting and management through Warpzone.
+   Editor done 2026-10-16 (v0.5.0): in-game editor (menu or `--editor`)
+   with keyboard, mouse and controller; a world's tiles, enemies (shown as
+   their sprites) and block items; ROM-free text levels in `levels/`;
+   played at once in the separate Custom mode on an in-memory ROM copy,
+   back to the editor on clear or game over ([docs/LEVELS.md](docs/LEVELS.md)).
+   Open: warp pipes and underground rooms, autoscroll/shooter levels,
+   boss gates, the leftward-scrolling level option, sharing/browsing/voting
+   through Warpzone.
 9. **Mod ecosystem** (requested 2026-10-11): typed packages with transitive
    versioned dependencies, delivered by the Warpzone archive (server-side
    resolution into lockfiles, offline validation, `wz_sync_mods`), and
@@ -111,8 +119,8 @@ The pure-C stock core and Linux frontend/AppImages are implemented. Release
 packaging for all four platforms, safe updates, the changelog screen and the
 Steam Deck installer exist (pre-release v0.1.0); Windows, PortMaster and Deck
 runtime behaviour awaits the player's hardware tests. The speedrun timer
-ships in v0.2.0. Warpzone online features, shared screens and the mod
-runtime are planned work.
+ships in v0.2.0, the level editor with its Custom mode in v0.5.0. Warpzone
+online features, shared screens and the mod runtime are planned work.
 
 The setup audit, fresh history, roadmap and anonymous fault relay are complete.
 GitHub reports public visibility (changed outside the workers). No-ROM CI

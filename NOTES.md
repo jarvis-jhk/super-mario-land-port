@@ -1,5 +1,43 @@
 # Running state
 
+## Level editor — 2026-10-16
+
+- Roadmap item mario-level-editor (Opus quota session). Done when: a
+  pre-release whose menu opens a level editor to place a world's tiles, item
+  blocks and enemies on a scrolling grid, save the level as a ROM-free file
+  and play it at once in a separate Custom mode, while every stock TAS stays
+  identical. No new issues/PRs at start (only #1, known).
+- src/platform/custom_level.c (no SDL): text format SML-LEVEL 1 (tiles per
+  row, `enemy col row id`, `item col id`; docs/LEVELS.md), identity =
+  SHA-256 of the canonical text. cl_build_rom writes the level in the game's
+  column format into a 64 KiB in-memory copy in place of world W's first
+  level (screen list, enemy list in the level bank; item and empty pipe
+  lists in bank 3), using the measured stock level-data space per bank
+  (bank 2 0x69A6-0x7873 = 1-2/1-3 data not shared with the title screen;
+  bank 1 0x56CD-0x7DAE; bank 3 0x52CC-0x6417); identical screens once.
+- Custom mode (sdl_main.c): starts from the title as a continue into world
+  W (pokes C0A6/C0A8/C004 on state $0F, presses Start), clear = state 7 ->
+  tally done, game over = $39/$3A, back to the editor; timer and
+  achievements off; `--record` movies get `# custom level <sha256>` and
+  start at the level's first poll. Enemy columns calibrated on runs:
+  progress = $0C + (col - 24) / 2, odd columns +8 px (cols 40/50/61 spawn
+  exactly there); Mario starts at cols 4-5; the level end stops with the
+  last column at the right edge (no stale columns).
+- Editor: grid with the world's graphics (VRAM from a silent capture run of
+  the stock ROM), enemies as their first script sprite (tile lists at
+  0x30B4), item letters, start box, enemy-start line; keyboard, mouse and
+  controller; tile/enemy palettes as pictures; menu with play, save, name,
+  world, length, open, new, back, quit. Autosave on leaving/playing.
+- Tests: frontend_test (format, errors, build/read back on a blank image in
+  all worlds, no repeat over item blocks, too-big refused); check-frontend
+  clears verify/tests/levels/walk-w1..4 (polls 1009) and loses to a Chibibo
+  (enemy-w1, game over polls 1401); verify/tests/editor_xvfb.sh (xdotool:
+  tile, enemy, item, Ctrl+S, play, back to editor, quit; file checked,
+  pictures checked by eye). Item kinds 28/2A/2C seen as mushroom/heart/star.
+- Open (not blocks): warp pipes/underground rooms, autoscroll/shooter
+  levels, boss gates, leftward-scroll option, Warpzone sharing; Jan's test
+  with a real controller/handheld (d-pad repeat, Start menu, Select kinds).
+
 ## RetroAchievements — 2026-10-16
 
 - Roadmap item mario-retroachievements (Opus quota session). Done when: a

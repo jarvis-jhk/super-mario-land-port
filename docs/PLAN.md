@@ -190,6 +190,12 @@ may only change presentation, never game state.
 6. **Level/world editor** in game, comparable to Super Mario Maker but limited
    to the mechanics Super Mario Land has (its tiles, enemies, power-ups, pipes,
    autoscroll/shooter stages, bosses...).
+   **Implemented 2026-10-16 (v0.5.0, src/platform/custom_level.c, editor in
+   sdl_main.c):** levels of one world's tiles, enemies and block items in a
+   ROM-free text format; Custom mode writes them into an in-memory ROM copy
+   in place of the world's first level (using that world's stock level
+   space) and starts it like a continue. Open: warp pipes/underground rooms,
+   autoscroll and shooter levels, boss gates ([LEVELS.md](LEVELS.md)).
 7. **Online custom levels**: in-game upload, listing, voting and playing,
    backed by a custom server (to be written; hosting TBD with the user).
    Custom levels are a separate mode; the original game and TAS sync are
@@ -325,7 +331,7 @@ So the port models the CPU's *timing* (not its instruction semantics):
 | 6 | Translate all code to readable C (bottom-up) | done: 205 of 205 inventoried routines in C, 230 registry entries |
 | 7 | Main loop + interrupt handlers in C; remove the interpreter; pure-C build passes all checks | done: interpreter-free core, register B tracked by the shadow; all lockstep checks pass |
 | 8 | SDL2 frontend polish (audio pacing, input config, scaling) | done for Linux: settings file, bindings, rate-controlled audio, vsync/clock pacing, scaling modes, AppImages (amd64, arm64); Windows builds but is untested |
-| 9 | Widescreen, RetroAchievements + menu, speedrun tools, level editor, Windows package | in progress: Windows package, speedrun timer, settings menu and widescreen done (v0.2.0, v0.3.0), RetroAchievements (v0.4.0, softcore); practice tools, editor open |
+| 9 | Widescreen, RetroAchievements + menu, speedrun tools, level editor, Windows package | in progress: Windows package, speedrun timer, settings menu and widescreen done (v0.2.0, v0.3.0), RetroAchievements (v0.4.0, softcore), level editor + Custom mode (v0.5.0, docs/LEVELS.md); practice tools, editor pipes/online sharing open |
 
 ### How to verify (all must pass before a commit)
 

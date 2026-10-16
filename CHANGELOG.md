@@ -3,6 +3,17 @@
 The game shows the new sections of this file on the first start of a new
 version. Newest first; one "## <version> - <date>" heading per release.
 
+## 0.5.0 - 2026-10-16
+
+- Level editor: "Level editor" in the menu. Build your own levels from a
+  world's tiles, enemies and item blocks (mushroom, heart, star, coins) with
+  keyboard, mouse or controller, save them, and play them at once. Clearing
+  the level or a game over brings you back to the editor.
+- Custom levels are small text files in the "levels" folder of the data
+  directory and contain no game data, so they can be shared. They play in a
+  separate Custom mode: the normal game, the speedrun timer and achievements
+  are not affected.
+
 ## 0.4.0 - 2026-10-16
 
 - RetroAchievements: sign in with your retroachievements.org account in the

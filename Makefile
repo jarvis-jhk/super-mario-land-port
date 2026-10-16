@@ -115,7 +115,7 @@ RC_SRC := $(wildcard src/third_party/rcheevos/src/*.c src/third_party/rcheevos/s
             src/third_party/rcheevos/src/rcheevos/*.c) src/third_party/rcheevos/src/rhash/md5.c
 PORT_SRC := src/platform/fault.c src/platform/sdl_main.c src/platform/settings.c src/platform/audio_sync.c \
             src/platform/text.c src/platform/update.c src/platform/update_core.c src/platform/speedrun.c src/platform/widescreen.c \
-            src/platform/achievements.c $(RC_SRC) \
+            src/platform/custom_level.c src/platform/achievements.c $(RC_SRC) \
             src/util/sha256.c $(CORE_SRC) $(HW_SRC) src/util/movie.c verify/common/png.c
 # The changelog shown on the first start of a new version is built in.
 CHANGELOG_H := $(BUILD)/gen/changelog_text.h
@@ -175,9 +175,12 @@ appimage-all: appimage-x86_64 appimage-aarch64
 # device or settings file needed. The speedrun timer must time the
 # console-verified TAS from the 1-1 blank frame to Tatanga's disappearance;
 # the same run unlocks the RetroAchievements test set (verify/tests/ra_fake,
-# no network) on the expected frames without changing the timing.
+# no network) on the expected frames without changing the timing. Custom
+# levels (verify/tests/levels) are built into the ROM copy, cleared in every
+# world, and an enemy placed in the editor's columns stops Mario.
 FRONTEND_TEST_SRC := verify/tests/frontend_test.c src/platform/settings.c src/platform/audio_sync.c \
-                     src/platform/update_core.c src/platform/speedrun.c src/util/sha256.c
+                     src/platform/update_core.c src/platform/speedrun.c src/platform/custom_level.c \
+                     src/util/sha256.c
 $(BUILD)/frontend_test: $(FRONTEND_TEST_SRC) src/platform/*.h src/util/sha256.h | $(BUILD)
 	$(CC) $(CFLAGS) -o $@ $(FRONTEND_TEST_SRC) -lm
 
@@ -193,6 +196,11 @@ check-frontend: $(BUILD)/frontend_test $(FRONTEND_BINARY) check-packaging
 	$(FRONTEND_BINARY) --rom rom/sml.gb --model agb --movie $(BUILD)/resync11.movie --headless 44100 \
 	    --widescreen 32:9 --screenshot $(BUILD)/widescreen-check/f --screenshot-every 20 | grep -qx 'frames=44100 polls=[0-9]*'
 	python3 -I verify/tests/widescreen_check.py $(BUILD)/widescreen-check 5 40 0.95 | tee $(BUILD)/widescreen-check.log
+	for w in 1 2 3 4; do $(FRONTEND_BINARY) --rom rom/sml.gb --play-level verify/tests/levels/walk-w$$w.level.txt \
+	    --movie verify/tests/levels/right.movie --headless 3000 | grep -qx 'custom: course clear frame=[0-9]* polls=1009' \
+	    || { echo "custom level walk-w$$w not cleared"; exit 1; }; done
+	$(FRONTEND_BINARY) --rom rom/sml.gb --play-level verify/tests/levels/enemy-w1.level.txt \
+	    --movie verify/tests/levels/right.movie --headless 3000 | grep -qx 'custom: game over frame=[0-9]* polls=1401'
 
 # Release packaging without a ROM: Steam shortcut editing on temporary
 # profiles, launcher syntax and the artwork generator.
