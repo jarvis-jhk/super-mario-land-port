@@ -20,6 +20,9 @@ current directory, `sml.gb` next to the AppImage, next to the executable,
 in `../rom/` from the executable, and in the data directory
 `~/.local/share/super-mario-land-port/sml.gb`. `--rom FILE` overrides
 the search. Started from a desktop launcher, errors appear in a message box.
+Started by the Warpzone launcher, the ROM it found on your disk
+(`WARPZONE_DATA_ROM`) is used without asking when it is v1.1, and a copy is
+kept as `sml.gb` in the data directory; any other file there is ignored.
 
 ## Windows, PortMaster and Steam Deck
 

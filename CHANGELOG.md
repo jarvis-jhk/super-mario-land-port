@@ -3,6 +3,11 @@
 The game shows the new sections of this file on the first start of a new
 version. Newest first; one "## <version> - <date>" heading per release.
 
+## 0.3.1 - 2026-10-16
+
+- Started from the Warpzone launcher, the game uses the Super Mario Land ROM
+  the launcher found on your disk without asking, and keeps a copy.
+
 ## 0.3.0 - 2026-10-16
 
 - Settings menu: Esc, or Guide, Select+Start or Select+L1 on a controller

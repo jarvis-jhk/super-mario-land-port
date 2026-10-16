@@ -1,5 +1,19 @@
 # Running state
 
+## Warpzone found-ROM hand-over — 2026-10-16
+
+- Request t_mvb0nern42hnrt (automatic, Warpzone lane): launcher >= 0.1.2
+  passes WARPZONE_DATA_ROM=<path> on every start. Done: without --rom, a
+  v1.1 file there is used and copied to the data dir as sml.gb (once); any
+  other file is ignored with a stderr note and the normal search goes on.
+  Tested headless: found ROM used + identical copy kept; bad file -> falls
+  back to the copy; bad file and no copy -> normal "ROM not found"; --rom
+  wins and is not copied without WARPZONE_LAUNCHED=1.
+- Descriptor games/super-mario-land-port.toml checked: files, import_args
+  (--rom {path}) and the v1.1/v1.0 fingerprints match the importer; the
+  missing present path, exec and exact asset names are already in open
+  warpzone PR #4 (commented there).
+
 ## Settings & widescreen — 2026-10-16
 
 - Roadmap item mario-settings-widescreen. Done when: a pre-release where Esc

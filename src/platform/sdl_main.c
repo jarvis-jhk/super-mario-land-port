@@ -50,7 +50,8 @@
  *
  * Started by the Warpzone launcher (WARPZONE_LAUNCHED=1), a ROM given with
  * --rom is kept as sml.gb in the data directory, and the launcher, not the
- * game, installs updates.
+ * game, installs updates. A v1.1 ROM the launcher found on the disk
+ * (WARPZONE_DATA_ROM) is used without asking and kept the same way.
  *
  * The first start of a new version shows what changed (CHANGELOG.md, built
  * in). Release builds look for a newer release in the background and install
@@ -1664,10 +1665,10 @@ static uint8_t *find_rom(const char *explicit_path, size_t *size, char *used, si
 
 /* The Warpzone launcher hands over the player's ROM once with --rom; keep a
    copy as sml.gb in the data directory so later starts find it. */
-static void keep_launcher_rom(const char *rom_path, const uint8_t *rom, size_t size)
+static void keep_launcher_rom(const char *rom_path, int found_by_launcher, const uint8_t *rom, size_t size)
 {
     const char *env = getenv("WARPZONE_LAUNCHED");
-    if (!rom_path || !env || strcmp(env, "1") || !data_dir()[0])
+    if (!rom_path || (!found_by_launcher && (!env || strcmp(env, "1"))) || !data_dir()[0])
         return;
     char path[1100];
     snprintf(path, sizeof path, "%ssml.gb", data_dir());
@@ -1794,6 +1795,23 @@ int main(int argc, char **argv)
         return fail(app.headless, "This is a no-ROM CI build without the locally generated "
                     "access table; it cannot run the game. Build the port locally "
                     "(docs/BUILDING.md).");
+    /* The Warpzone launcher passes the ROM it found on the player's disk
+       (WARPZONE_DATA_ROM) on every start: use it when it is the supported
+       version, and keep a copy, unless --rom names another file. */
+    int found_by_launcher = 0;
+    const char *wz_rom = getenv("WARPZONE_DATA_ROM");
+    if (!rom_path && wz_rom && wz_rom[0]) {
+        size_t n = 0;
+        uint8_t *d = load_file(wz_rom, &n);
+        if (d && core_identify_rom(d, n) == ROM_SML_V11) {
+            rom_path = wz_rom;
+            found_by_launcher = 1;
+        } else {
+            fprintf(stderr, "WARPZONE_DATA_ROM %s: %s, not used\n", wz_rom,
+                    d ? core_rom_description(core_identify_rom(d, n)) : "cannot read it");
+        }
+        free(d);
+    }
     size_t rom_size = 0;
     char rom_used[1100] = "";
     uint8_t *rom = find_rom(rom_path, &rom_size, rom_used, sizeof rom_used);
@@ -1809,7 +1827,7 @@ int main(int argc, char **argv)
         return fail(app.headless, "%s: %s.\n\nThis port needs Super Mario Land (World) "
                     "(Rev A / v1.1), SHA1 418203621b887caa090215d97e3f509b79affd3e.",
                     rom_used, core_rom_description(version));
-    keep_launcher_rom(rom_path, rom, rom_size);
+    keep_launcher_rom(rom_path, found_by_launcher, rom, rom_size);
     app.rom = rom;
     app.rom_size = rom_size;
     if (movie_path) {
