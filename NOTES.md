@@ -34,6 +34,15 @@
   (enemy-w1, game over polls 1401); verify/tests/editor_xvfb.sh (xdotool:
   tile, enemy, item, Ctrl+S, play, back to editor, quit; file checked,
   pictures checked by eye). Item kinds 28/2A/2C seen as mushroom/heart/star.
+- Gates (pipefail) passed: check/check-states/check-models (shadow 0
+  mismatches; resync11 44976, ending 65477, game over 5082, pause/reset 706
+  identical polls), check-frontend incl. custom levels, check-fault.
+  Evidence: build/editor-gates-*.log.
+- Published pre-release https://github.com/jarvis-jhk/super-mario-land-port/releases/tag/v0.5.0
+  (tag on acbce93): 12 assets HTTP 200, expected sizes, byte-identical;
+  release binary times resync11 at 12:17.02 and clears walk-w3; a
+  downloaded 0.4.0 updated itself to 0.5.0 (hash equal to update.txt).
+  Item closed.
 - Open (not blocks): warp pipes/underground rooms, autoscroll/shooter
   levels, boss gates, leftward-scroll option, Warpzone sharing; Jan's test
   with a real controller/handheld (d-pad repeat, Start menu, Select kinds).
