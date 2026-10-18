@@ -63,6 +63,12 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
    docs/integration.md), leaderboards `any` (seasonal) and `1-1` fed by the
    speedrun timer with ruleset stock vs. lockfile hash and replay hashes.
    No chat or free-text player content.
+   Fault reports through Warpzone (asked 2026-10-17, t_mvc43532c85kj): once
+   libwarpzone 0.1.3 is released and /api/v1/feedback is live, send faults
+   as game id `super-mario-land-port` (wz_report for caught faults, the
+   crash file sent with wz_report_problem on the next start) next to or
+   instead of the ntfy relay. Stable titles; detail stays within
+   docs/FAULT_REPORTS.md: no logs, paths, memory, ROM data or personal data.
 7. **Shared screens for up to 16 players** (requested 2026-10-16: "playable
    cooperatively with synchronized splitscreen views (up to 16 players) each
    playing their own game - just for some shared fun"): every player runs an

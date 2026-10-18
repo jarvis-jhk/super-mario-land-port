@@ -1,0 +1,5 @@
+# Start a game and stand still in 1-1 until the clock runs out: the time-up
+# death (game state $3B, "TIME UP" in the window) and the restart of 1-1.
+- *20
+START
+- *17000

@@ -3,6 +3,15 @@
 The game shows the new sections of this file on the first start of a new
 version. Newest first; one "## <version> - <date>" heading per release.
 
+## 0.5.1 - 2026-10-18
+
+- Fixed: the game could close without a message in rarer situations the
+  test runs had not covered, such as climbing down a ladder in the bonus
+  game after a level, going down a pipe, running out of time or pressing
+  Select on the title menu with a continue left.
+- Fixed: the top lines of the status bar no longer flicker sideways
+  (an original Game Boy timing quirk, now corrected on the display only).
+
 ## 0.5.0 - 2026-10-16
 
 - Level editor: "Level editor" in the menu. Build your own levels from a

@@ -7,9 +7,13 @@ of an instruction are the union over these runs, in parallel:
 
   * the console-verified TAS (build/resync11.movie) on agb, cgb and dmg;
   * the attract-mode demo (no input, 30000 frames);
-  * tracked game-over, complete ending and pause/reset regression movies;
+  * tracked game-over, complete ending, pause/reset, bonus-ladder,
+    pipe-down, pipe-enter, time-up and continue-select regression movies;
   * the other TAS inputs in reference/tas (they desync, but still execute
-    real game code: game over, other routes).
+    real game code: game over, other routes);
+  * seeded random input branching off the TAS every 2500 polls (bonus
+    games, pipes, deaths, time-ups and other paths players take but the
+    movies do not; fixed seeds keep the table reproducible).
 
 Fresh classes replace the old ones (merging with `emurun --access-table`
 would keep stale bits, e.g. RAM for an address that has become shared).
@@ -20,6 +24,7 @@ The result is local-only and must never be added to the public index.
 """
 import argparse
 import os
+import random
 import re
 import subprocess
 import sys
@@ -36,16 +41,59 @@ def load(path):
         return {(int(b, 16), int(a, 16)): int(c) for b, a, c in ENTRY.findall(f.read())}
 
 
-def runs():
+BRANCH_POLLS = range(2500, 45000, 2500)
+BRANCH_SEEDS = (1, 2, 3)
+BRANCH_LENGTH = 3000
+BUTTONS = ("A", "B", "RIGHT", "LEFT", "UP", "DOWN")
+
+
+def tas_prefix(polls):
+    out = []
+    with open(os.path.join(ROOT, "build/resync11.movie")) as f:
+        for line in f:
+            line = line.split("#")[0].strip()
+            if not line:
+                continue
+            buttons, _, count = line.partition("*")
+            out += [buttons.strip()] * (int(count) if count else 1)
+            if len(out) >= polls:
+                return out[:polls]
+    return out
+
+
+def random_tail(seed, polls):
+    """Held button combinations, leaning forward, with rare pause/select."""
+    rng = random.Random(seed)
+    out = []
+    while len(out) < polls:
+        held = [b for b in BUTTONS if rng.random() < (0.5 if b == "RIGHT" else 0.3)]
+        if rng.random() < 0.03:
+            held.append(rng.choice(("START", "SELECT")))
+        out += ["+".join(held) or "-"] * rng.randint(1, 40)
+    return out[:polls]
+
+
+def branch_movie(tmp, start, seed):
+    path = os.path.join(tmp, "branch-%d-%d.movie" % (start, seed))
+    with open(path, "w") as f:
+        f.write("\n".join(tas_prefix(start) + random_tail(start * 100 + seed, BRANCH_LENGTH)) + "\n")
+    return path
+
+
+def runs(tmp):
     movie = ["--movie", "build/resync11.movie"]
     yield [*movie, "--model", "agb"]
     yield [*movie, "--model", "cgb"]
     yield [*movie, "--model", "dmg"]
     yield ["--model", "agb", "--polls", "30000", "--frames", "30000"]
-    for name in ("game-over", "ending", "pause-reset"):
+    for name in ("game-over", "ending", "pause-reset", "bonus-ladder", "pipe-down", "pipe-enter",
+                 "time-up", "continue-select"):
         yield ["--model", "agb", "--movie", "verify/movies/" + name + ".movie"]
     for fin in ("2091.fin", "resync10.fin"):
         yield ["--model", "agb", "--frame-input", "reference/tas/" + fin, "176"]
+    for start in BRANCH_POLLS:
+        for seed in BRANCH_SEEDS:
+            yield ["--model", "agb", "--movie", branch_movie(tmp, start, seed)]
 
 
 def main():
@@ -60,7 +108,7 @@ def main():
                            cwd=ROOT, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return load(out)
         with ThreadPoolExecutor(args.jobs) as pool:
-            tables = list(pool.map(one, enumerate(runs())))
+            tables = list(pool.map(one, enumerate(runs(tmp))))
     fresh = {}
     for t in tables:
         for k, v in t.items():

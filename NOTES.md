@@ -1,5 +1,34 @@
 # Running state
 
+## 0.5.1 crash fixes — 2026-10-18
+
+- Request t_mvd8mk6e1eds8s (work session). Issue #3 (0.5.0 Linux fault,
+  bonus-game ladder, twice) and #1 (time-up after the pause/reset movie):
+  timing-shadow aborts on paths no access-table run had reached. The
+  generator now also replays seeded random input branching off the TAS
+  every 2500 polls (3 seeds, 3000 polls each) plus the new bonus-ladder,
+  pipe-down, pipe-enter, time-up and continue-select movies, which
+  check-states also compares (reference vs port vs hybrid).
+- Fresh-seed sweep with the new table: 60 TAS-branch runs (4000 random
+  polls) and 40 power-on random-play runs (20000 polls), seeds not used by
+  the generator: 0 shadow aborts. Issue #1 repro runs 70000 frames.
+- Gates (pipefail) passed: check/check-states/check-models (shadow 0
+  mismatches; resync11 44976, ending 65477, game over 5082, pause/reset 706,
+  bonus-ladder 8864, pipe-down 26120, pipe-enter 30396, time-up 17082,
+  continue-select 29014 identical polls), check-frontend, check-fault.
+  Evidence: build/r051-gates-*.log.
+
+## Warpzone fault reports — 2026-10-17
+
+- Request t_mvc43532c85kj (automatic, warpzone lane): report crashes and
+  faults through Warpzone's feedback API. Deferred, not a fault: the request
+  itself says to start once libwarpzone 0.1.3 is released; latest release is
+  v0.1.2 and https://warpzone.virtualtabletop.io/api/v1/feedback answers 404.
+  Recorded under ROADMAP item 6. Crashes are already reported through the
+  ntfy relay (docs/FAULT_REPORTS.md); the Warpzone detail must keep its
+  fixed-payload rule (no logs/paths/memory/ROM data). Uncommitted 0.5.1 work
+  in the tree left untouched.
+
 ## Status bar top-line fix — 2026-10-16
 
 - Request t_mvbjus1m16maua (Jan): the top pixel row glitches sometimes;

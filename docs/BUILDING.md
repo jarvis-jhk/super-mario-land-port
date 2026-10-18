@@ -126,6 +126,9 @@ as well as rom/sml.gb. To prepare them:
     make check check-states check-models SHELL="/bin/bash -o pipefail"
 
 The Makefile also generates missing classifications before a full core build.
+Besides the movies it replays seeded random input branching off the TAS, so
+rare paths players reach are classified too (about 10 minutes on 10 CPUs).
+A path no run reached stops the game with a timing-shadow message.
 The generator never requires an old private table. Keep generated data local;
 see docs/PUBLIC_AUDIT.md. Hardware-oracle font data is also local-only:
 
