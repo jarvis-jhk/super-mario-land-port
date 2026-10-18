@@ -17,6 +17,12 @@
   bonus-ladder 8864, pipe-down 26120, pipe-enter 30396, time-up 17082,
   continue-select 29014 identical polls), check-frontend, check-fault.
   Evidence: build/r051-gates-*.log.
+- Published pre-release https://github.com/jarvis-jhk/super-mario-land-port/releases/tag/v0.5.1
+  (tag on e8d0b4c): 12 assets HTTP 200, expected sizes, byte-identical;
+  release binary times resync11 at 12:17.02 and runs the bonus-ladder,
+  pipe-enter, time-up and continue-select movies; a downloaded 0.5.0
+  updated itself to 0.5.1 under Xvfb (hash equal to update.txt).
+  Issues #3 and #1 closed.
 
 ## Warpzone fault reports — 2026-10-17
 
