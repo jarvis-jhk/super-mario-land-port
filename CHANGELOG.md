@@ -3,6 +3,11 @@
 The game shows the new sections of this file on the first start of a new
 version. Newest first; one "## <version> - <date>" heading per release.
 
+## 0.5.2 - 2026-10-19
+
+- Fixed: the game closed when small Mario won the flower in the bonus game
+  after a level (the animation where he grows into Super Mario).
+
 ## 0.5.1 - 2026-10-18
 
 - Fixed: the game could close without a message in rarer situations the

@@ -275,7 +275,7 @@ check: $(BUILD)/fntest $(BUILD)/portrun $(BUILD)/portrun_hybrid $(BUILD)/emurun_
 	env -u SML_C_MAIN -u SML_HYBRID_ONLY $(BUILD)/portrun_hybrid rom/sml.gb --model agb --movie build/resync11.movie --poll-log $(BUILD)/h_agb.log
 	python3 tools/compare_polls.py $(BUILD)/e_agb.log $(BUILD)/h_agb.log
 
-# Rare states plus the complete ending, pause/reset, bonus-ladder, pipe-down,
+# Rare states plus the complete ending, pause/reset, bonus-ladder, bonus-flower, pipe-down,
 # pipe-enter, time-up and continue-select control flow, for the port and for the hybrid core.
 check-states: $(BUILD)/fntest $(BUILD)/portrun $(BUILD)/portrun_hybrid $(BUILD)/emurun_s
 	$(BUILD)/fntest rom/sml.gb --model agb --movie build/resync11.movie \
@@ -285,7 +285,7 @@ check-states: $(BUILD)/fntest $(BUILD)/portrun $(BUILD)/portrun_hybrid $(BUILD)/
 	$(BUILD)/fntest rom/sml.gb --model agb --movie build/resync11.movie \
 	    --polls 100 --samples 0 --fuzz 8 --cases verify/fntest/state-cases.txt \
 	    --require-coverage verify/fntest/state-required.txt | tail -1
-	@for movie in ending game-over pause-reset bonus-ladder pipe-down pipe-enter time-up continue-select; do \
+	@for movie in ending game-over pause-reset bonus-ladder bonus-flower pipe-down pipe-enter time-up continue-select; do \
 	    $(BUILD)/emurun_s rom/sml.gb --model agb --movie verify/movies/$$movie.movie --poll-log $(BUILD)/states_$$movie.reference.log && \
 	    $(BUILD)/portrun rom/sml.gb --model agb --movie verify/movies/$$movie.movie --poll-log $(BUILD)/states_$$movie.port.log && \
 	    python3 tools/compare_polls.py $(BUILD)/states_$$movie.reference.log $(BUILD)/states_$$movie.port.log || exit $$?; \

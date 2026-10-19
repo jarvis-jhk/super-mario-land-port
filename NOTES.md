@@ -1,5 +1,28 @@
 # Running state
 
+## Bonus-game flower crash (0.5.2) — 2026-10-19
+
+- Requests t_mvfsal31i6jbh (Warpzone launcher crash report, exit 134 after
+  89 s) and t_mvfsb9zjkxt9t (Jan: crash collecting the bonus-game flower):
+  timing-shadow abort at 02:5DE5. Small Mario winning the flower runs the
+  grow/shrink loop 02:5DCE-5DF6, which no access-table run had reached
+  (the TAS is always big there), so its OAM-buffer reads were unclassified.
+  Issue #4.
+- New verify/movies/bonus-flower.movie: resync11 input with three idle
+  polls at poll 6000 (the 1-3 boss fireball hits Mario, he finishes small),
+  then A 26 polls into the ladder selection (flower, grow animation). The
+  0.5.1 port reproduces the exact abort on it. Added to the access-table
+  generator and to check-states. Fresh table = old table + 7 entries
+  (02:5DD3-5DEF). Audit: no other indirect access in the bonus code
+  (02:5832-5F14, 00:3D97-3EE5) is missing from the table.
+- Gates (pipefail) passed: check/check-states/check-models (shadow 0
+  mismatches; bonus-flower 8682 identical polls, all other movies identical),
+  check-frontend with the 0.5.2 static binary, check-fault. Release binary
+  plays the bonus-flower movie through. Pre-release v0.5.2; #4 and #5 (ntfy
+  copy of the same crash) closed.
+- Search scripts and logs: build/flower/. Gates ran in build/wt-flower
+  (HEAD + this change; the main tree's uncommitted pack WIP left alone).
+
 ## macOS roadmap item — 2026-10-19
 
 - Request t_mvewigcq10i7c8 (from adhoc, combined item mario-macos-support):

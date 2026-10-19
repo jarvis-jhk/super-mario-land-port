@@ -7,7 +7,7 @@ of an instruction are the union over these runs, in parallel:
 
   * the console-verified TAS (build/resync11.movie) on agb, cgb and dmg;
   * the attract-mode demo (no input, 30000 frames);
-  * tracked game-over, complete ending, pause/reset, bonus-ladder,
+  * tracked game-over, complete ending, pause/reset, bonus-ladder, bonus-flower,
     pipe-down, pipe-enter, time-up and continue-select regression movies;
   * the other TAS inputs in reference/tas (they desync, but still execute
     real game code: game over, other routes);
@@ -86,7 +86,7 @@ def runs(tmp):
     yield [*movie, "--model", "cgb"]
     yield [*movie, "--model", "dmg"]
     yield ["--model", "agb", "--polls", "30000", "--frames", "30000"]
-    for name in ("game-over", "ending", "pause-reset", "bonus-ladder", "pipe-down", "pipe-enter",
+    for name in ("game-over", "ending", "pause-reset", "bonus-ladder", "bonus-flower", "pipe-down", "pipe-enter",
                  "time-up", "continue-select"):
         yield ["--model", "agb", "--movie", "verify/movies/" + name + ".movie"]
     for fin in ("2091.fin", "resync10.fin"):
