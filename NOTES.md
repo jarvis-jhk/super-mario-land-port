@@ -1,5 +1,21 @@
 # Running state
 
+## macOS roadmap item — 2026-10-19
+
+- Request t_mvewigcq10i7c8 (from adhoc, combined item mario-macos-support):
+  added ROADMAP.md priority 10 "macOS support" after Jan's items (universal
+  or two-arch build, macOS runner smoke test in CI, release asset, PLAYING
+  notes, unsigned with Gatekeeper workaround) and its known risks (SDL2
+  bundling, Metal/OpenGL and Retina scaling, controllers, Application
+  Support paths, updater's /proc/self/exe/AppImage logic, curl, libwarpzone
+  macOS build). Roadmap only, no implementation.
+- The main tree still holds an earlier worker's uncommitted presentation-pack
+  WIP (src/platform/pack.c, sdl_main.c, apu, Makefile, stb); left untouched
+  and uncommitted. Gates for this commit ran on HEAD + ROADMAP.md in a
+  separate worktree: check/check-states/check-models (shadow 0
+  mismatches, all movies identical), check-frontend with the static binary,
+  check-fault passed. Evidence: build/gate-macos-roadmap/.
+
 ## 0.5.1 crash fixes — 2026-10-18
 
 - Request t_mvd8mk6e1eds8s (work session). Issue #3 (0.5.0 Linux fault,

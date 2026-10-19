@@ -90,6 +90,28 @@ Current implementation and verification commands: [docs/PLAN.md](docs/PLAN.md).
    resolution into lockfiles, offline validation, `wz_sync_mods`), and
    sandboxed Lua for custom tile/player/enemy behavior.
    [Design and staged delivery](docs/MODS.md).
+10. **macOS support** (requested 2026-10-19, combined item
+   mario-macos-support): a macOS build for Apple Silicon and Intel (universal
+   binary or two archives), built and smoke-tested on a GitHub macOS runner in
+   CI (no-ROM tests there; the 600-frame headless playback locally or with a
+   ROM-free fixture), attached to every pre-release by make_release.sh,
+   included in the update manifest, with install/start notes in
+   [docs/PLAYING.md](docs/PLAYING.md). Unsigned is fine; document the
+   Gatekeeper workaround (right-click > Open, or
+   `xattr -dr com.apple.quarantine`). Known risks: SDL2 must come as a
+   bundled framework/dylib (the Linux static SDL build in tools/build_sdl2.sh
+   is X11/GLX-only); use SDL's Metal or OpenGL renderer and keep integer
+   scaling and widescreen identical on Retina (HiDPI drawable size vs. window
+   size); controllers through SDL's IOKit/GameController backends need the
+   same mapping and menu navigation tests; settings, saves, levels and the
+   ROM location need an `~/Library/Application Support/super-mario-land-port`
+   path (today XDG/`$HOME/.config` or next to the binary); the updater uses
+   `/proc/self/exe` and AppImage logic and must use the .app bundle path,
+   replace it atomically and drop quarantine only on verified downloads;
+   fault reports and RetroAchievements shell out to curl (present on macOS);
+   the Warpzone client (libwarpzone) needs a macOS build for its C API.
+   Stock gameplay stays cycle-exact: all TAS replays must pass on the macOS
+   build too.
 
 ## Rules for every release
 
